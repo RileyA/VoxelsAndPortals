@@ -7,11 +7,14 @@
 
 // A bunch of random constants
 
+// #define BLOCK_NORMALS
+#define SMOOTH_LIGHTING
+
 // Default chunk size
 const static unsigned char CHUNK_SIZE_X = 16;
 const static unsigned char CHUNK_SIZE_Y = 16;
 const static unsigned char CHUNK_SIZE_Z = 16;
-const static unsigned char CHUNK_SIZE[3] = 
+const static unsigned char CHUNKSIZE[3] = 
 	{CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
 
 // volume of a chunk
@@ -55,6 +58,7 @@ static const Real LIGHTVALUES[16] = {
 // for convenience
 const static byte AXIS[6] = {0,0,1,1,2,2};
 const static int8 AXIS_OFFSET[6] = {-1,1,-1,1,-1,1};
+const static int8 AXIS_INVERT[6] = {1,0,3,2,5,4};
 
 // directions used in smooth lighting calculations
 const static int8 LIGHTING_COORDS[6][4][2] = {
@@ -75,6 +79,85 @@ enum BlockDirection
 	BD_UP,    // +y
 	BD_FRONT, // -z
 	BD_BACK   // +z
+};
+
+const byte FILTERVERTEX[6] = {0,3,1,3,2,1};
+
+const byte MAPPINGS[7][6] = 
+{
+	/*{1,1,1,1,1,1},
+	{1,1,1,1,1,1},
+	{2,2,2,2,2,2},
+	{3,3,3,3,3,3},
+	{4,4,4,4,4,4}*/
+	// Minecraft "terrain.png":
+	{1,1,1,1,1,1},// air
+	{53,53,53,53,53,53},// shrub
+	{2,2,2,2,2,2}, // dirt
+	{3,3,3,3,3,3}, // stone
+	{4,4,3,1,4,4}, // grass
+	{21,21,22,22,21,21},// tree trunk
+	{24,24,24,24,24,24}// gold (emissive)
+};
+
+enum BlockProperties
+{
+	// the first 4 bits are light amt if emissive, or translucency level if transparent
+	// this makes the two mutually exclusive, which isn't ideal, but ah well
+	BP_SOLID = 1<<4,      // can be drawn as a block
+	BP_TRANSPARENT = 1<<5,// can be seen through
+	BP_SOMTHING = 1<<6,   // I dunno yet
+	BP_EMISSIVE = 1<<7    // emits light
+};
+
+const byte BLOCKTYPES[] = 
+{
+	BP_TRANSPARENT, //air
+	2 | BP_SOLID | BP_TRANSPARENT, //shrub
+	BP_SOLID, //dirt
+	BP_SOLID, //stone
+	BP_SOLID, //grass
+	BP_SOLID, //trunk
+	15 | BP_SOLID | BP_EMISSIVE
+	// 7 | BP_SOLID | BP_EMISSIVE    // a hypothetical emissive block (emits at 8)
+	// 3 | BP_SOLID | BP_TRANSLUCENT // a hypothetical translucent block (reduces passing light by 3)
+};
+
+const Vector3 BLOCK_VERTICES[6][6] =
+{
+	{Vector3(-0.5f,0.5f,0.5f),Vector3(-0.5f,0.5f,-0.5f),Vector3(-0.5f,-0.5f,-0.5f),
+		Vector3(-0.5f,0.5f,0.5f),Vector3(-0.5f,-0.5f,-0.5f),Vector3(-0.5f,-0.5f,0.5f)},
+	{Vector3(0.5f,0.5f,-0.5f),Vector3(0.5f,0.5f,0.5f),Vector3(0.5f,-0.5f,0.5f),
+		Vector3(0.5f,0.5f,-0.5f),Vector3(0.5f,-0.5f,0.5f),Vector3(0.5f,-0.5f,-0.5f)},
+	{Vector3(0.5f,-0.5f,-0.5f),Vector3(0.5f,-0.5f,0.5f),Vector3(-0.5f,-0.5f,0.5f),
+		Vector3(0.5f,-0.5f,-0.5f),Vector3(-0.5f,-0.5f,0.5f),Vector3(-0.5f,-0.5f,-0.5f)},
+	{Vector3(0.5f,0.5f,0.5f),Vector3(0.5f,0.5f,-0.5f),Vector3(-0.5f,0.5f,-0.5f),
+		Vector3(0.5f,0.5f,0.5f),Vector3(-0.5f,0.5f,-0.5f),Vector3(-0.5f,0.5f,0.5f)},
+	{Vector3(0.5f,0.5f,-0.5f),Vector3(0.5f,-0.5f,-0.5f),Vector3(-0.5f,-0.5f,-0.5f),
+		Vector3(0.5f,0.5f,-0.5f),Vector3(-0.5f,-0.5f,-0.5f),Vector3(-0.5f,0.5f,-0.5f)},
+	{Vector3(0.5f,-0.5f,0.5f),Vector3(0.5f,0.5f,0.5f),Vector3(-0.5f,0.5f,0.5f),
+		Vector3(0.5f,-0.5f,0.5f),Vector3(-0.5f,0.5f,0.5f),Vector3(-0.5f,-0.5f,0.5f)}
+};
+
+const Vector3 BLOCK_NORMALS[6] =
+{
+	Vector3(-1,0,0),
+	Vector3(1,0,0),
+	Vector3(0,-1,0),
+	Vector3(0,1,0),
+	Vector3(0,0,-1),
+	Vector3(0,0,1)	
+};
+
+// todo: fix vertex windings and such above, so this isn't necessary
+const Vector2 BLOCK_TEXCOORDS[6][6] =
+{
+	{Vector2(0,0),Vector2(1,0),Vector2(1,1),Vector2(0,0),Vector2(1,1),Vector2(0,1)},
+	{Vector2(0,0),Vector2(1,0),Vector2(1,1),Vector2(0,0),Vector2(1,1),Vector2(0,1)},
+	{Vector2(0,0),Vector2(1,0),Vector2(1,1),Vector2(0,0),Vector2(1,1),Vector2(0,1)},
+	{Vector2(0,0),Vector2(1,0),Vector2(1,1),Vector2(0,0),Vector2(1,1),Vector2(0,1)},
+	{Vector2(1,0),Vector2(1,1),Vector2(0,1),Vector2(1,0),Vector2(0,1),Vector2(0,0)},
+	{Vector2(1,1),Vector2(1,0),Vector2(0,0),Vector2(1,1),Vector2(0,0),Vector2(0,1)}
 };
 
 #endif

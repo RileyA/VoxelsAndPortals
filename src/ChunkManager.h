@@ -1,7 +1,11 @@
 #ifndef ChunkManager_H
 #define ChunkManager_H
 
-class ChunkManager
+#include "Common.h"
+#include "OryxObject.h"
+#include "ChunkGenerator.h"
+
+class ChunkManager : public Object
 {
 public:
 
@@ -9,6 +13,10 @@ public:
 	~ChunkManager();
 
 	void init(Vector3 origin, ChunkGenerator* gen);
+
+	/** This is the update function for the main thread (responsible for updating
+	 *		Chunk meshes and the like */
+	void update(Real delta);
 
 protected:
 
