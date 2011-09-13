@@ -72,7 +72,7 @@ void PlayState::init()
 	m2->setMaterialName("Portal2");*/
 
 	Portal* p1 = new Portal(Vector3(-4.5f,-7,0), Vector3(0,0,1), true);
-	Portal* p2 = new Portal(Vector3(4.5f,-7,-4.f), Vector3(0,0,1), false);
+	Portal* p2 = new Portal(Vector3(4.5f,-7,-4.f), Vector3(0,0,-1), false);
 
 	p1->setSibling(p2);
 	p2->setSibling(p1);

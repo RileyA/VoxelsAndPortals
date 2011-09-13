@@ -24,7 +24,7 @@ Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 	//mNode->yaw(180.f);
 	mMesh = mOgre->createMesh("Portal.mesh");
 	mMesh->setPosition(pos);
-	mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection));
+	mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0)));
 
 	if(!blue)
 		mMesh->setMaterialName("Portal2");
@@ -37,6 +37,11 @@ Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 Portal::~Portal()
 {
 
+}
+
+Vector3 reflect(Vector3 i, Vector3 n)
+{
+	return i - n * 2 * i.dotProduct(n);
 }
 
 void Portal::update(Real delta)
@@ -54,9 +59,9 @@ void Portal::update(Real delta)
 		Vector3 portal1 = mMesh->getPosition();
 		Vector3 portal2 = mSibling->mMesh->getPosition();
 
-		Quaternion portal1Rotation = Vector3::UNIT_Z.getRotationTo(mDirection);
+		Quaternion portal1Rotation = Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0));
 		// dir * -1, since we're looking through the back of the portal
-		Quaternion portal2Rotation = Vector3::UNIT_Z.getRotationTo(mSibling->mDirection * -1);
+		Quaternion portal2Rotation = Vector3::UNIT_Z.getRotationTo(mSibling->mDirection * -1, Vector3(0,1,0));
 
 		// observer position in portal1's coordinate space
 		Vector3 portalSpacePos = mpos - portal1;
@@ -64,6 +69,7 @@ void Portal::update(Real delta)
 		portalSpacePos = portal1Rotation * portalSpacePos;
 
 		Vector3 portalSpaceDir = portal1Rotation * mdir;
+		portalSpaceDir = portal2Rotation * portalSpaceDir;
 
 		// now apply portal2 transforms to the parent node
 		//mNode->setPosition(portal2);
@@ -71,7 +77,6 @@ void Portal::update(Real delta)
 
 		//mCamera->setPosition(portalSpacePos);
 		//mCamera->setDirection(portalSpaceDir);
-
 
 		// take 2, manually do the whole thang
 		mNode->setPosition(Vector3::ZERO);
@@ -84,26 +89,43 @@ void Portal::update(Real delta)
 
 		portalSpaceDir = portal2Rotation * portalSpaceDir;*/
 
-		portalSpacePos += portal1;
+		portalSpacePos = portal2Rotation * portalSpacePos;
+		
+		//portal2.x *= -1;
+		//portal2.z *= -1;
+		
+		//portal2 = portal1Rotation * portal2;
+		//portal2 = reflect(portal2, mSibling->mDirection);
+		//portal2.y *= -1;
+		//portalSpacePos -= portal2;
+
+		//portal2.y *= -1;
+		portalSpacePos += portal2;
+
+		//portalSpacePos.y *= -1;
+		//portalSpacePos += reflect(portal2, mSibling->mDirection);
+
+
+		//portalSpacePos.z *= -1;
+		//portalSpacePos.x *= -1;
+		//portalSpacePos.y *= -1;
 
 		// I - 2 dot(n, I) * n
-		
-		Vector3 normal = /*mSibling->*/mDirection;
-		Vector3 reflectedPos = portalSpacePos - normal * 2 * portalSpacePos.dotProduct(normal);
+		//Vector3 normal = /*mSibling->*/mDirection;
+		//Vector3 reflectedPos = portalSpacePos - normal * 2 * portalSpacePos.dotProduct(normal);
+		//reflectedPos.x *=-1;
+		//mCamera->setPosition(reflectedPos);
 
-
-		//mCamera->setPosition(portalSpacePos);
-		mCamera->setPosition(reflectedPos);
-		portalSpaceDir.y *= -1;
-		portalSpaceDir.x *= -1;
-		mCamera->setDirection(portalSpaceDir * -1);
+		mCamera->setPosition(portalSpacePos);
+		//portalSpaceDir.y *= -1;
+		mCamera->setDirection(portalSpaceDir);
 
 		if(b)
 		{
 			std::cout<<"pos: "<<mCamera->getAbsolutePosition().x<<" "<<mCamera->getAbsolutePosition().y<<" "
 				<<mCamera->getAbsolutePosition().z<<"\n";
-			std::cout<<"dir: "<<mCamera->getAbsoluteDirection().x<<" "<<mCamera->getAbsoluteDirection().y<<" "
-				<<mCamera->getAbsoluteDirection().z<<"\n";
+			//std::cout<<"dir: "<<mCamera->getAbsoluteDirection().x<<" "<<mCamera->getAbsoluteDirection().y<<" "
+			//	<<mCamera->getAbsoluteDirection().z<<"\n";
 		}
 
 		/*Camera* mainCam = mOgre->getActiveCamera();
