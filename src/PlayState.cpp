@@ -167,8 +167,8 @@ void PlayState::update(Real delta)
 	//std::cout<<"p1: "<<portalcam1->getAbsolutePosition().x<<" "<<portalcam1->getAbsolutePosition().y<<" "<<
 	//	portalcam1->getAbsolutePosition().z<<"\n";
 	
-	//std::cout<<"cam: "<<mCam->mCamera->getAbsolutePosition().x<<" "<<mCam->mCamera->getAbsolutePosition().y<<" "<<
-	//	mCam->mCamera->getAbsolutePosition().z<<"\n";
+	std::cout<<"cam: "<<mCam->mCamera->getAbsolutePosition().x<<" "<<mCam->mCamera->getAbsolutePosition().y<<" "<<
+		mCam->mCamera->getAbsolutePosition().z<<"\n";
 	//std::cout<<"p2: "<<portalcam2->getAbsolutePosition().x<<" "<<portalcam2->getAbsolutePosition().y<<" "<<
 	//	portalcam2->getAbsolutePosition().z<<"\n";
 
