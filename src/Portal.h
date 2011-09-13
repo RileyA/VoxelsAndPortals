@@ -21,7 +21,8 @@ public:
 	void setDirection(Vector3 d)
 	{
 		mDirection = d;
-		mMesh->setDirection(d);
+		mMesh->setOrientation(Quaternion::IDENTITY);
+		mMesh->setDirectionHack(d);
 		//mMesh->setOrientation( 
 		//	Vector3::UNIT_Z.getRotationTo(mDirection, 
 		//		Vector3(0,0,1)));

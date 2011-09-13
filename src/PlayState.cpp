@@ -71,13 +71,13 @@ void PlayState::init()
 	m2->setPosition(Vector3(4.f,-7.f,-8));
 	m2->setMaterialName("Portal2");*/
 
-	Vector3 norm = Vector3(0,0,1);
+	Vector3 norm = Vector3(0,0,-1);
 	norm.normalize();
-	Vector3 norm2 = Vector3(0,0,1);
+	Vector3 norm2 = Vector3(0,0,-1);
 	norm2.normalize();
 
-	port1 = new Portal(Vector3(-4.f,-7,0.5f), norm2, true);
-	port2 = new Portal(Vector3(4.5f,-7,-4.f), norm, false);
+	port1 = new Portal(Vector3(-4.f,-7,0.f), norm2, true);
+	port2 = new Portal(Vector3(4.5f,-7,0.f), norm, false);
 
 	port1->setSibling(port2);
 	port2->setSibling(port1);
@@ -254,22 +254,22 @@ void PlayState::update(Real delta)
 		if(block & 1)
 		{
 			std::cout<<"EXACT +Z\n";
-			Vector3 nn = Vector3(1.f,0,0.0);
+			Vector3 nn = Vector3(1.f,0.f,0.0);
 			nn.normalize();
 			port2->setDirection(nn);
 
-			Vector3 nn2 = Vector3(0,0,-1);
+			Vector3 nn2 = Vector3(0,0,1);
 			nn2.normalize();
 			port1->setDirection(nn2);
 		}
 		else
 		{
 			std::cout<<"OFFSETS -Z\n";
-			Vector3 nn = Vector3(-1,0,0);
+			Vector3 nn = Vector3(-1,0,1);
 			nn.normalize();
 			port2->setDirection(nn);
 
-			Vector3 nn2 = Vector3(0,0,1);
+			Vector3 nn2 = Vector3(1,0,0);
 			nn2.normalize();
 			port1->setDirection(nn2);
 		}

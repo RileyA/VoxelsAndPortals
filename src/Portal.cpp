@@ -21,14 +21,19 @@ Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 		mOgre->createRTT("blargh", mCamera, 1024, 1024);
 	}
 	mCamera->setAspectRatio(1.3333f);
-	//mDirection = direction;
 	mNode = mOgre->createSceneNode();
-	//mNode->addChild(mCamera);
-	//mNode->yaw(180.f);
+	mNode->setPosition(Vector3::ZERO);
+	mNode->setOrientation(Quaternion::IDENTITY);
 	mMesh = mOgre->createMesh("Portal.mesh");
 	mMesh->setPosition(pos);
-	//mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0)));
 	setDirection(direction);
+
+	mNode->addChild(mCamera);
+	//mNode->yaw(180.f);
+	//mNode->setScale(Vector3(1,1,-1));
+
+	mCamera->setCamPosition(Vector3(0,0,0));
+	mCamera->setDirection(Vector3(0,0,-1));
 
 	if(!blue)
 		mMesh->setMaterialName("Portal2");
@@ -65,92 +70,83 @@ void Portal::update(Real delta)
 		Vector3 portal1 = mMesh->getPosition();
 		Vector3 portal2 = mSibling->mMesh->getPosition();
 
-		// TODO: add upAxis member, and use it as the fallback rotation axis
+		// TAKE 3 (3rd times the... ahhh fuck forget it)
 
-		//mMesh->setOrientation(Quaternion::IDENTITY.inverse() * 
-		//	Vector3::UNIT_Z.getRotationTo(mDirection, 
-		//		Vector3(0,1,0)));
+		//Vector3 pos = mpos - portal1;
+		//mCamera->setPosition(pos);
 
-		bool p1id = false;
-		bool p2id = false;
+		// relative to portal
+		//Vector3 relative = mpos - mMesh->getPosition();
+		//relative = mMesh->getOrientation().inverse() * relative;
 
-		bool fall1 = false;
-		bool fall2 = false;
+		mCamera->setPosition(mMesh->worldToLocalPosition(mainCam->getAbsolutePosition()));
+		mCamera->setOrientation(mMesh->worldToLocalOrientation(mainCam->getCamAbsoluteOrientation()));
+		mCamera->enableReflection(mSibling->mDirection,
+			- mSibling->mDirection.dotProduct(mSibling->mMesh->getPosition() * -1));
+		
+		
+		//mCamera->setCamOrientation(Quaternion::IDENTITY);
 
+		//mCamera->setPosition(relative);
+		//mCamera->setOrientation(mMesh->getOrientation().inverse());
 
-		Vector3 ind = mDirection;
+		//mCamera->setCamPosition();
+		//mCamera->setCamOrientation(Quaternion::IDENTITY);
+
+		//mCamera->setDirection(mdir);
+		//mCamera->setCamOrientation(mMesh->getOrientation() * mCamera->getCamOrientation());
+
+		// TAKE 2
+
+		/*Vector3 mydir = mDirection * -1;
+		Vector3 sibdir = mSibling->mDirection;
+		
+		Quaternion rotation = mydir.getRotationTo(sibdir);
+		Vector3 p1spacepos = mpos - portal1;
+
+		Vector3 p2spacepos = rotation * p1spacepos;
+		Vector3 p2spacedir = rotation * mdir;
+
+		Vector3 wspacepos = p2spacepos + portal2;
+
+		mCamera->setPosition(wspacepos);
+		mCamera->setDirection(p2spacedir);*/
+
+		//mCamera->setPosition(portal2 - mSibling->mDirection * 4);
+		//mCamera->setDirection(mSibling->mDirection);
+
+		// TAKE 1
+		/*Vector3 ind = mDirection;
 		Vector3 ind2 = mSibling->mDirection;
-		ind.x *= -1;
+		//ind.x *= -1;
+		//ind.x *= -1;
+		//ind.z *= -1;
 		//ind2.x *= -1;
-		Quaternion portal1Rotation = SceneNode::hack(ind, &fall1);
-		Quaternion portal2Rotation = SceneNode::hack(ind2 * -1, &fall2);
-
-		//if(fall1 && b)
-		//	std::cout<<"FALL BACK!!!\n";
-	
-		/*Quaternion portal1Rotation = 
-			//Quaternion::IDENTITY * 
-			getRotationTo(Vector3::UNIT_Z,mDirection, Vector3(0,1,0), p1id, fall1)
-			* Quaternion::IDENTITY;
-		// dir * -1, since we're looking through the back of the portal
-		Vector3 tmp = mSibling->mDirection * -1;
-		Quaternion portal2Rotation = 
-			//Quaternion::IDENTITY * 
-			getRotationTo(Vector3::UNIT_Z, tmp, 
-				Vector3(0,1,0), p2id, fall2)
-				*Quaternion::IDENTITY;*/
+		//ind2.y *= -1;
+		Quaternion portal1Rotation = SceneNode::hack(ind);
+		Quaternion portal2Rotation = SceneNode::hack(ind2 * -1);
 
 		// observer position in portal1's coordinate space
 		Vector3 portalSpacePos = mpos - portal1;
-
-		// rotate into portal1 space
-		portalSpacePos = portal1Rotation/*.inverse()*/ * portalSpacePos;
-
-		// take 2, manually do the whole thang
-		mNode->setPosition(Vector3::ZERO);
-		mNode->setOrientation(Quaternion::IDENTITY);
-
-		// rotate into portal2 space
+		// rotate into each space
+		portalSpacePos = portal1Rotation * portalSpacePos;// inverse?
 		portalSpacePos = portal2Rotation * portalSpacePos;
-		
 		// translate into portal2 space
 		portalSpacePos += portal2;
 		Vector3 portalSpaceDir;
-
+		// rotate direction
 		portalSpaceDir = portal1Rotation * (mdir);
 		portalSpaceDir = portal2Rotation * portalSpaceDir;
-
+		// set it
 		mCamera->setPosition(portalSpacePos);
-		mCamera->setDirection(portalSpaceDir);
-
-		//Vector3 mirrorAlong = mSibling->mDirection.crossProduct(Vector3(0,1,0));
-		// check for parallel vectors
-		/*if(fall1 || fall2)
-		{
-			// perpendicular portal vectors seem to be a special case of some magical sort...
-			Vector3 mirrorAlong = Vector3::UNIT_Y.crossProduct(mSibling->mDirection);
-			//Vector3 mirrorAlong2;
-			Vector3 mirrorAlong2 = mDirection.crossProduct(mSibling->mDirection);
-			//Vector3 mirrorAlong2;
-
-			portalSpaceDir = reflect(portalSpaceDir, mirrorAlong);
-			portalSpaceDir = reflect(portalSpaceDir, mirrorAlong2);
-			//portalSpaceDir = reflect(portalSpaceDir, mSibling->mDirection);
-
-			portalSpacePos -= portal2;
-			portalSpacePos = reflect(portalSpacePos, mirrorAlong);
-			portalSpacePos = reflect(portalSpacePos, mirrorAlong2);
-			portalSpacePos += portal2;
-		}*/
-			//mirrorAlong2 = mirrorAlong;
-		//else
-		//	mirrorAlong2 = mDirection.crossProduct(mSibling->mDirection);
+		mCamera->setDirection(portalSpaceDir);*/
 	}
 }
 
 void Portal::setSibling(Portal* p)
 {	
 	mSibling = p;
+	mSibling->mMesh->addChild(mNode);
 }
 
 
