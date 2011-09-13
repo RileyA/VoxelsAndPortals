@@ -2,6 +2,9 @@
 #include "OryxEngine.h"
 #include "OgreSubsystem/OgreSubsystem.h"
 
+Quaternion getRotationTo(const Vector3& orig, 
+	const Vector3& dest, const Vector3& fallback, bool& id, bool& fall);
+
 Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 {
 	mOgre = Engine::getPtr()->getSubsystem("OgreSubsystem")->castType<OgreSubsystem>();
@@ -18,13 +21,14 @@ Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 		mOgre->createRTT("blargh", mCamera, 1024, 1024);
 	}
 	mCamera->setAspectRatio(1.3333f);
-	mDirection = direction;
+	//mDirection = direction;
 	mNode = mOgre->createSceneNode();
-	mNode->addChild(mCamera);
+	//mNode->addChild(mCamera);
 	//mNode->yaw(180.f);
 	mMesh = mOgre->createMesh("Portal.mesh");
 	mMesh->setPosition(pos);
-	mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0)));
+	//mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0)));
+	setDirection(direction);
 
 	if(!blue)
 		mMesh->setMaterialName("Portal2");
@@ -44,6 +48,8 @@ Vector3 reflect(Vector3 i, Vector3 n)
 	return i - n * 2 * i.dotProduct(n);
 }
 
+#define PRINT_QUATERNION(Q) std::cout<<#Q<<": "<<Q.x<<" "<<Q.y<<" "<<Q.z<<" : "<<Q.w<<"\n";
+
 void Portal::update(Real delta)
 {
 	if(mSibling)
@@ -59,143 +65,148 @@ void Portal::update(Real delta)
 		Vector3 portal1 = mMesh->getPosition();
 		Vector3 portal2 = mSibling->mMesh->getPosition();
 
-		Quaternion portal1Rotation = Vector3::UNIT_Z.getRotationTo(mDirection, Vector3(0,1,0));
+		// TODO: add upAxis member, and use it as the fallback rotation axis
+
+		//mMesh->setOrientation(Quaternion::IDENTITY.inverse() * 
+		//	Vector3::UNIT_Z.getRotationTo(mDirection, 
+		//		Vector3(0,1,0)));
+
+		bool p1id = false;
+		bool p2id = false;
+
+		bool fall1 = false;
+		bool fall2 = false;
+
+
+		Vector3 ind = mDirection;
+		Vector3 ind2 = mSibling->mDirection;
+		ind.x *= -1;
+		//ind2.x *= -1;
+		Quaternion portal1Rotation = SceneNode::hack(ind, &fall1);
+		Quaternion portal2Rotation = SceneNode::hack(ind2 * -1, &fall2);
+
+		//if(fall1 && b)
+		//	std::cout<<"FALL BACK!!!\n";
+	
+		/*Quaternion portal1Rotation = 
+			//Quaternion::IDENTITY * 
+			getRotationTo(Vector3::UNIT_Z,mDirection, Vector3(0,1,0), p1id, fall1)
+			* Quaternion::IDENTITY;
 		// dir * -1, since we're looking through the back of the portal
-		Quaternion portal2Rotation = Vector3::UNIT_Z.getRotationTo(mSibling->mDirection * -1, Vector3(0,1,0));
+		Vector3 tmp = mSibling->mDirection * -1;
+		Quaternion portal2Rotation = 
+			//Quaternion::IDENTITY * 
+			getRotationTo(Vector3::UNIT_Z, tmp, 
+				Vector3(0,1,0), p2id, fall2)
+				*Quaternion::IDENTITY;*/
 
 		// observer position in portal1's coordinate space
 		Vector3 portalSpacePos = mpos - portal1;
-		// rotate in
-		portalSpacePos = portal1Rotation * portalSpacePos;
 
-		Vector3 portalSpaceDir = portal1Rotation * mdir;
-		portalSpaceDir = portal2Rotation * portalSpaceDir;
-
-		// now apply portal2 transforms to the parent node
-		//mNode->setPosition(portal2);
-		//mNode->setOrientation(portal2Rotation.inverse());
-
-		//mCamera->setPosition(portalSpacePos);
-		//mCamera->setDirection(portalSpaceDir);
+		// rotate into portal1 space
+		portalSpacePos = portal1Rotation/*.inverse()*/ * portalSpacePos;
 
 		// take 2, manually do the whole thang
 		mNode->setPosition(Vector3::ZERO);
 		mNode->setOrientation(Quaternion::IDENTITY);
 
-		// now rotate into portal2 space
-		// rotate in
-		/*portalSpacePos = portal2Rotation.inverse() * portalSpacePos;
-		portalSpacePos = portalSpacePos + portal2;
-
-		portalSpaceDir = portal2Rotation * portalSpaceDir;*/
-
+		// rotate into portal2 space
 		portalSpacePos = portal2Rotation * portalSpacePos;
 		
-		//portal2.x *= -1;
-		//portal2.z *= -1;
-		
-		//portal2 = portal1Rotation * portal2;
-		//portal2 = reflect(portal2, mSibling->mDirection);
-		//portal2.y *= -1;
-		//portalSpacePos -= portal2;
-
-		//portal2.y *= -1;
+		// translate into portal2 space
 		portalSpacePos += portal2;
+		Vector3 portalSpaceDir;
 
-		//portalSpacePos.y *= -1;
-		//portalSpacePos += reflect(portal2, mSibling->mDirection);
-
-
-		//portalSpacePos.z *= -1;
-		//portalSpacePos.x *= -1;
-		//portalSpacePos.y *= -1;
-
-		// I - 2 dot(n, I) * n
-		//Vector3 normal = /*mSibling->*/mDirection;
-		//Vector3 reflectedPos = portalSpacePos - normal * 2 * portalSpacePos.dotProduct(normal);
-		//reflectedPos.x *=-1;
-		//mCamera->setPosition(reflectedPos);
+		portalSpaceDir = portal1Rotation * (mdir);
+		portalSpaceDir = portal2Rotation * portalSpaceDir;
 
 		mCamera->setPosition(portalSpacePos);
-		//portalSpaceDir.y *= -1;
 		mCamera->setDirection(portalSpaceDir);
 
-		if(b)
+		//Vector3 mirrorAlong = mSibling->mDirection.crossProduct(Vector3(0,1,0));
+		// check for parallel vectors
+		/*if(fall1 || fall2)
 		{
-			std::cout<<"pos: "<<mCamera->getAbsolutePosition().x<<" "<<mCamera->getAbsolutePosition().y<<" "
-				<<mCamera->getAbsolutePosition().z<<"\n";
-			//std::cout<<"dir: "<<mCamera->getAbsoluteDirection().x<<" "<<mCamera->getAbsoluteDirection().y<<" "
-			//	<<mCamera->getAbsoluteDirection().z<<"\n";
-		}
+			// perpendicular portal vectors seem to be a special case of some magical sort...
+			Vector3 mirrorAlong = Vector3::UNIT_Y.crossProduct(mSibling->mDirection);
+			//Vector3 mirrorAlong2;
+			Vector3 mirrorAlong2 = mDirection.crossProduct(mSibling->mDirection);
+			//Vector3 mirrorAlong2;
 
-		/*Camera* mainCam = mOgre->getActiveCamera();
-		Vector3 mpos = mainCam->getAbsolutePosition();
-		Vector3 mdir = mainCam->getAbsoluteDirection();
+			portalSpaceDir = reflect(portalSpaceDir, mirrorAlong);
+			portalSpaceDir = reflect(portalSpaceDir, mirrorAlong2);
+			//portalSpaceDir = reflect(portalSpaceDir, mSibling->mDirection);
 
-		//Quaternion rotate = mDirection.getRotationTo(mSibling->mDirection * -1);
-
-		//Quaternion rotate = 
-
-		Quaternion rotate = Vector3::NEGATIVE_UNIT_Z.getRotationTo(mSibling->mDirection);
-		//mNode->setOrientation(rotate);
-		//mNode->setScale(Vector3(-1,1,-1));
-		//mNode
-		//
-		mNode->setOrientation(Quaternion::IDENTITY);
-		mNode->setOrientation(rotate.inverse() * mNode->getOrientation());
-
-
-		mdir.y *= -1;
-		//mdir.x *= -1;
-		//mdir *= -1;
-	
-		//Quaternion rotation = mDirection.getRotationTo(mSibling->mDirection);
-		//Quaternion rotation = mSibling->mDirection.getRotationTo(mDirection);
-		//mdir = rotation * mdir;
-
-		mCamera->setDirection(mdir * -1);
-		//mCamera->roll(180.f);
-		//mCamera->setOrientation(mCamera->getOrientation() * rotate);
-
-
-		// portal space camera position
-		Vector3 pspace = mpos - mMesh->getPosition();
-
-		// sibling portal space
-		Vector3 sibSpace = mSibling->mMesh->getPosition();
-
-		mNode->setPosition(sibSpace);
-		mCamera->setPosition(pspace);
-
-		//mNode->setPosition(mpos);
-		//mCamera->setPosition(mpos);
-
-		Vector3 pr = mSibling->mDirection * sibSpace.dotProduct(mSibling->mDirection);
-		//mCamera->setCustomNearClip(mSibling->mDirection, -pr.length());
-
-		//mCamera->enableReflection(mSibling->mDirection, sibSpace.z);*/
-
-		/*Camera* mainCam = mOgre->getActiveCamera();
-		Vector3 mpos = mainCam->getAbsolutePosition();
-		Vector3 mdir = mainCam->getAbsoluteDirection();
-		mCamera->setDirection(mdir);
-		mCamera->setPosition(mpos);
-
-		mCamera->enableReflection(Vector3(0,0,1), 0);*/
-        
-
-		// rotate direction into sibling space
-
-		//if(b)
-		//	mCamera->hackityHack("Portal1");
+			portalSpacePos -= portal2;
+			portalSpacePos = reflect(portalSpacePos, mirrorAlong);
+			portalSpacePos = reflect(portalSpacePos, mirrorAlong2);
+			portalSpacePos += portal2;
+		}*/
+			//mirrorAlong2 = mirrorAlong;
 		//else
-		//	mCamera->hackityHack("Portal2");
-		//mainCam->hackityHack("Portal1");
-		//mainCam->hackityHack("Portal2");
+		//	mirrorAlong2 = mDirection.crossProduct(mSibling->mDirection);
 	}
 }
 
 void Portal::setSibling(Portal* p)
 {	
 	mSibling = p;
+}
+
+
+Quaternion getRotationTo(const Vector3& orig, 
+	const Vector3& dest, const Vector3& fallback, bool& id, bool& fall)
+{
+	// Based on Stan Melax's article in Game Programming Gems
+	Vector3 fallbackAxis = fallback;
+	Quaternion q;
+	Vector3 v0 = orig;
+	Vector3 v1 = dest;
+	v0.normalize();
+	v1.normalize();
+
+	Real d = v0.dotProduct(v1);
+
+	// If dot == 1, vectors are the same
+	if(d >= 1.0f)
+	{
+		std::cout<<"ID\n";
+		id = true;
+		return Quaternion::IDENTITY;
+	}
+
+	if(d < (1e-6f - 1.0f))
+	{
+		std::cout<<"fallback!\n";
+		if(fallbackAxis != Vector3::ZERO)
+		{
+			// rotate 180 degrees about the fallback axis
+			q.FromAngleAxis(3.141592, fallbackAxis);
+			fall = true;
+		}
+		else
+		{
+			// Generate an axis
+			Vector3 axis = Vector3::UNIT_X.crossProduct(orig);
+
+			if(axis.isZeroLength()) // pick another if colinear
+			{
+				axis = Vector3::UNIT_Y.crossProduct(orig);
+				axis.normalize();
+				q.FromAngleAxis(3.141592, axis);
+			}
+		}
+	}
+	else
+	{
+		Real s = sqrt( (1+d)*2 );
+			Real invs = 1 / s;
+		Vector3 c = v0.crossProduct(v1);
+		q.x = c.x * invs;
+		q.y = c.y * invs;
+		q.z = c.z * invs;
+		q.w = s * 0.5f;
+		q.normalize();
+	}
+	return q;
 }

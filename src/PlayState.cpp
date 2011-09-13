@@ -71,11 +71,16 @@ void PlayState::init()
 	m2->setPosition(Vector3(4.f,-7.f,-8));
 	m2->setMaterialName("Portal2");*/
 
-	Portal* p1 = new Portal(Vector3(-4.5f,-7,0), Vector3(0,0,1), true);
-	Portal* p2 = new Portal(Vector3(4.5f,-7,-4.f), Vector3(0,0,-1), false);
+	Vector3 norm = Vector3(0,0,1);
+	norm.normalize();
+	Vector3 norm2 = Vector3(0,0,1);
+	norm2.normalize();
 
-	p1->setSibling(p2);
-	p2->setSibling(p1);
+	port1 = new Portal(Vector3(-4.f,-7,0.5f), norm2, true);
+	port2 = new Portal(Vector3(4.5f,-7,-4.f), norm, false);
+
+	port1->setSibling(port2);
+	port2->setSibling(port1);
 
 	mCam = new FPSCamera();
 
@@ -167,12 +172,15 @@ void PlayState::update(Real delta)
 	//std::cout<<"p1: "<<portalcam1->getAbsolutePosition().x<<" "<<portalcam1->getAbsolutePosition().y<<" "<<
 	//	portalcam1->getAbsolutePosition().z<<"\n";
 	
-	std::cout<<"cam: "<<mCam->mCamera->getAbsolutePosition().x<<" "<<mCam->mCamera->getAbsolutePosition().y<<" "<<
-		mCam->mCamera->getAbsolutePosition().z<<"\n";
+	//std::cout<<"cam: "<<mCam->mCamera->getAbsoluteDirection().x<<" "<<mCam->mCamera->getAbsoluteDirection().y<<" "<<
+	//	mCam->mCamera->getAbsoluteDirection().z<<"\n";
 	//std::cout<<"p2: "<<portalcam2->getAbsolutePosition().x<<" "<<portalcam2->getAbsolutePosition().y<<" "<<
 	//	portalcam2->getAbsolutePosition().z<<"\n";
 
-
+	/*Vector3 portd = mCam->getPosition() * -1;
+	portd.y = 0;
+	portd.normalize();
+	port1->setDirection(portd);*/
 
 	//portalcam2->enableReflection(Vector3(0,0,1));
 
@@ -243,6 +251,29 @@ void PlayState::update(Real delta)
 
 	if(mInput->wasKeyPressed("KC_Q"))
 	{
+		if(block & 1)
+		{
+			std::cout<<"EXACT +Z\n";
+			Vector3 nn = Vector3(1.f,0,0.0);
+			nn.normalize();
+			port2->setDirection(nn);
+
+			Vector3 nn2 = Vector3(0,0,-1);
+			nn2.normalize();
+			port1->setDirection(nn2);
+		}
+		else
+		{
+			std::cout<<"OFFSETS -Z\n";
+			Vector3 nn = Vector3(-1,0,0);
+			nn.normalize();
+			port2->setDirection(nn);
+
+			Vector3 nn2 = Vector3(0,0,1);
+			nn2.normalize();
+			port1->setDirection(nn2);
+		}
+
 		++block;
 		if(block >= 6)
 			block = 1;

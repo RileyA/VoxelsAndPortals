@@ -8,6 +8,7 @@
 #include "GUISubsystem/GUIPanel.h"
 #include "GUISubsystem/GUICaption.h"
 #include "GUISubsystem/GUIButton.h"
+#include "Portal.h"
 
 class BasicChunkGenerator;
 
@@ -47,6 +48,9 @@ private:
 
 	SceneNode* pn1;
 	SceneNode* pn2;
+
+	Portal* port1;
+	Portal* port2;
 
 
 };
