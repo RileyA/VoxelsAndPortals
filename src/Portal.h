@@ -18,6 +18,8 @@ public:
 
 	void setSibling(Portal* p);
 
+	void init();
+
 	void setDirection(Vector3 d)
 	{
 		mDirection = d;
@@ -39,7 +41,15 @@ public:
 			mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, 
 				Vector3(0,1,0)));*/
 	}
+
+	Camera* getCamera()
+	{
+		return mCamera;
+	}
 	//void observerMoved(const Message& msg);
+
+	String rtt1;
+	String rtt2;
 
 protected:
 
@@ -51,8 +61,10 @@ protected:
 	OgreSubsystem* mOgre;
 
 	Vector3 mDirection;
+	Vector3 mPosition;
 	String rtt;
 	bool b;
+
 
 };
 

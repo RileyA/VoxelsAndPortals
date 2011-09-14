@@ -29,60 +29,21 @@ void PlayState::init()
 
 	mGfx->setBackgroundColor(Colour(0,0,0));
 
-	//mCam->mPosNode->setPosition(Vector3(0,0,1));
-
-	//mCam->mCamera->setPosition(Vector3(0,0,0));
-
-	/*portalcam1 = mGfx->createCamera();
-	portalcam2 = mGfx->createCamera();
-
-	pn1 = mGfx->createSceneNode();
-	pn2 = mGfx->createSceneNode();
-
-	pn1->addChild(portalcam1);
-	pn2->addChild(portalcam2);
-
-	portalcam1->setPosition(Vector3(0,0,0));
-	portalcam2->setPosition(Vector3(0,0,0));
-
-	pn1->setOrientation(Quaternion::IDENTITY);
-	pn2->setOrientation(Quaternion::IDENTITY);
-
-	//pn1->yaw(180.f);
-	pn2->yaw(180.f);
-
-	portalcam1->setDirection(Vector3(0,0,1));
-	portalcam2->setDirection(Vector3(0,0,1));
-
-	mGfx->createRTT("blargh", portalcam1, 1024, 1024);
-	mGfx->createRTT("blargh2", portalcam2, 1024, 1024);
-	portalcam1->setAspectRatio(1.3333f);
-	portalcam2->setAspectRatio(1.3333f);
-	//portalcam1->setCustomNearClip(Vector3(0,0,1), -8);
-	//portalcam2->setCustomNearClip(Vector3(0,0,1), 0);
-
-	Mesh* m = mGfx->createMesh("Portal.mesh");
-	//m->setScale(Vector3(1,1,-1));
-	Mesh* m2 = mGfx->createMesh("Portal2.mesh");
-	mGfx->getRootSceneNode()->addChild(m);
-	mGfx->getRootSceneNode()->addChild(m2);
-	m->setPosition(Vector3(-4.f,-7.f,0));
-	//m2->yaw(-90.f);
-	m2->setPosition(Vector3(4.f,-7.f,-8));
-	m2->setMaterialName("Portal2");*/
-
 	Vector3 norm = Vector3(0,0,-1);
 	norm.normalize();
-	Vector3 norm2 = Vector3(0,0,-1);
+	Vector3 norm2 = Vector3(0,0,1);
 	norm2.normalize();
+	mCam = new FPSCamera();
 
-	port1 = new Portal(Vector3(-4.f,-7,0.f), norm2, true);
-	port2 = new Portal(Vector3(4.5f,-7,0.f), norm, false);
+	port1 = new Portal(Vector3(-6.f,-7,-3.f), norm2, true);
+	port2 = new Portal(Vector3(-6,-7,3), norm, false);
+
+	port1->init();
+	port2->init();
 
 	port1->setSibling(port2);
 	port2->setSibling(port1);
 
-	mCam = new FPSCamera();
 
 	BulletSubsystem* bt = Engine::getPtr()->getSubsystem("BulletSubsystem")->
 		castType<BulletSubsystem>();
@@ -145,64 +106,22 @@ void PlayState::update(Real delta)
 	acCount->setCaption("Active Chunks: " + StringUtils::toString(mGen->numActiveChunks));
 	gcCount->setCaption("Generated Chunks: " + StringUtils::toString(mGen->numGeneratedChunks));
 
-	/*Vector3 pos = mCam->getPosition();// + Vector3(0,0,16);
-	Vector3 dir = mCam->getDirection();
-	//pos = pos - Vector3(0,0,-1) * 2 * pos.dotProduct(Vector3(0,0,-1));
-	//Vector3 refd = dir - Vector3(0,0,-1) * 2 * dir.dotProduct(Vector3(0,0,-1));
-	portalcam1->setPosition(pos);
-	portalcam1->setDirection(dir);
-	portalcam1->enableReflection(Vector3(0,0,1), -8.f);
-	portalcam1->hackityHack("Portal1");
-	dir.y *= -1;
+	//mCam->mCamera->hackityHack(port1->getCamera(), "Portal1", 1);
+	//mCam->mCamera->hackityHack(port1->getCamera(), "Portal1", 2);
+	port1->getCamera()->hackityHack(mCam->mCamera, "Portal1", 2);
+	//port1->getCamera()->hackityHack(mCam->mCamera, "Portal1", 2);
 
-	//dir.x *= -1;
-	portalcam2->setPosition(pos - Vector3(1.f,0.f,-8.f));
-	portalcam2->setDirection(dir * -1);
-	//pos.y *= -1;
-	//dir.x *= -1;
-	//dir.z *= -1;
-	//portalcam1->setPosition(pos - Vector3(1.f,0.f,-8.f));
-	//portalcam1->setDirection(dir * -1);
-	//portalcam1->enableReflection(Vector3(0,0,1));
+	mCam->mCamera->hackityHack(port2->getCamera(), "Portal2", 1);
+	//mCam->mCamera->hackityHack(port2->getCamera(), "Portal2", 2);
 
-	//portalcam2->hackityHack("Portal2");
-	//mCam->mCamera->hackityHack("Portal1");
-	mCam->mCamera->hackityHack("Portal2");*/
-
-	//std::cout<<"p1: "<<portalcam1->getAbsolutePosition().x<<" "<<portalcam1->getAbsolutePosition().y<<" "<<
-	//	portalcam1->getAbsolutePosition().z<<"\n";
-	
-	//std::cout<<"cam: "<<mCam->mCamera->getAbsoluteDirection().x<<" "<<mCam->mCamera->getAbsoluteDirection().y<<" "<<
-	//	mCam->mCamera->getAbsoluteDirection().z<<"\n";
-	//std::cout<<"p2: "<<portalcam2->getAbsolutePosition().x<<" "<<portalcam2->getAbsolutePosition().y<<" "<<
-	//	portalcam2->getAbsolutePosition().z<<"\n";
-
-	/*Vector3 portd = mCam->getPosition() * -1;
-	portd.y = 0;
-	portd.normalize();
-	port1->setDirection(portd);*/
-
-	//portalcam2->enableReflection(Vector3(0,0,1));
-
-	//portalCam->enableReflection();
-	//portalcam1->setNearClip(fabs(pos.z) + 0.1f);
-	//portalcam2->setNearClip(fabs(pos.z) + 0.1f);
-	//portalcam1->setFarClip(fabs(ref.z) * 100);
-	/*portalcam1->extentsHack(
-		(-1 - ref.x), 
-		(1 - ref.x), 
-		(1 - ref.y), 
-		(-1 - ref.y));*/
-	//portalcam1->setDirection(pos * -1);
-
-	//pos = mCam->getPosition();
-	//ref = pos - Vector3(0,0,-1) * 2 * pos.dotProduct(Vector3(0,0,-1));
-
-	//portalcam2->setPosition(ref);
-	//portalcam2->setDirection((pos + Vector3(0,0,-2))*-1);
-
-	//mCam->mCamera->hackityHack("Portal1");
-	//mCam->mCamera->hackityHack("Portal2");
+	/*port2->getCamera()->hackityHack(mCam->mCamera, "Portal1", 1);
+	port2->getCamera()->hackityHack(mCam->mCamera, "Portal1", 2);
+	port1->getCamera()->hackityHack(mCam->mCamera, "Portal2", 1);
+	port1->getCamera()->hackityHack(mCam->mCamera, "Portal2", 2);*/
+	/*port1->getCamera()->hackityHack(port2->getCamera(), "Portal2", 1);
+	port1->getCamera()->hackityHack(port2->getCamera(), "Portal2", 2);
+	port2->getCamera()->hackityHack(port1->getCamera(), "Portal1", 1);
+	port2->getCamera()->hackityHack(port1->getCamera(), "Portal1", 2);*/
 
 	if(mInput->wasButtonPressed("MB_Right"))
 	{
@@ -249,11 +168,19 @@ void PlayState::update(Real delta)
 		}
 	}
 
+	if(mInput->wasKeyPressed("KC_K"))
+	{
+		mGfx->takeScreenshot("P1_1", port1->rtt1);
+		mGfx->takeScreenshot("P1_2", port1->rtt2);
+		mGfx->takeScreenshot("P2_1", port2->rtt1);
+		mGfx->takeScreenshot("P2_2", port2->rtt2);
+		mGfx->takeScreenshot("P5");
+	}
+
 	if(mInput->wasKeyPressed("KC_Q"))
 	{
 		if(block & 1)
 		{
-			std::cout<<"EXACT +Z\n";
 			Vector3 nn = Vector3(1.f,0.f,0.0);
 			nn.normalize();
 			port2->setDirection(nn);
@@ -264,12 +191,11 @@ void PlayState::update(Real delta)
 		}
 		else
 		{
-			std::cout<<"OFFSETS -Z\n";
-			Vector3 nn = Vector3(-1,0,1);
+			Vector3 nn = Vector3(1,0,-1);
 			nn.normalize();
 			port2->setDirection(nn);
 
-			Vector3 nn2 = Vector3(1,0,0);
+			Vector3 nn2 = Vector3(0,0,1);
 			nn2.normalize();
 			port1->setDirection(nn2);
 		}

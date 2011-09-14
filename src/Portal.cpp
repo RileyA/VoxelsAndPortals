@@ -12,40 +12,53 @@ Portal::Portal(Vector3 pos, Vector3 direction, bool blue)
 	mCamera->setPosition(Vector3(0,0,0));// it'll move into place once it has a siblingA
 	mCamera->setDirection(Vector3(0,0,1));
 	mCamera->setFOV(70.f);
+	Camera* mainCam = mOgre->getActiveCamera();
 	if(!blue)
 	{
-		mOgre->createRTT("blargh2", mCamera, 1024, 1024);
+		rtt1 = mOgre->createRTT("blargh2", mCamera, 1024, 1024, "portal");
+		rtt2 = mOgre->createRTT("blargh2_2", mCamera, 1024, 1024, "portal2");
+		//rtt2 = mOgre->createRTT("blargh2_2", mainCam, 1024, 1024, "portal2");
 	}
 	else
 	{
-		mOgre->createRTT("blargh", mCamera, 1024, 1024);
+		//rtt1 = mOgre->createRTT("blargh", mCamera, 1024, 1024, "portal");
+		rtt1 = mOgre->createRTT("blargh", mainCam, 1024, 1024, "portal");
+		rtt2 = mOgre->createRTT("blargh_2", mCamera, 1024, 1024, "portal2");
+		//rtt2 = mOgre->createRTT("blargh_2", mainCam, 1024, 1024, "portal2");
 	}
 	mCamera->setAspectRatio(1.3333f);
 	mNode = mOgre->createSceneNode();
 	mNode->setPosition(Vector3::ZERO);
 	mNode->setOrientation(Quaternion::IDENTITY);
-	mMesh = mOgre->createMesh("Portal.mesh");
-	mMesh->setPosition(pos);
-	setDirection(direction);
 
 	mNode->addChild(mCamera);
-	//mNode->yaw(180.f);
-	//mNode->setScale(Vector3(1,1,-1));
+	mNode->yaw(180.f);
 
 	mCamera->setCamPosition(Vector3(0,0,0));
-	mCamera->setDirection(Vector3(0,0,-1));
+	mCamera->setDirection(Vector3(0,0,1));
 
-	if(!blue)
-		mMesh->setMaterialName("Portal2");
-
-	mOgre->getRootSceneNode()->addChild(mMesh);
 	mSibling = 0;
 	b = blue;
+
+	mDirection = direction;
+	mPosition = pos;
 }
 
 Portal::~Portal()
 {
 
+}
+
+void Portal::init()
+{
+	mMesh = mOgre->createMesh("Portal.mesh");
+	mMesh->setPosition(mPosition);
+	setDirection(mDirection);
+
+	if(!b)
+		mMesh->setMaterialName("Portal2");
+
+	mOgre->getRootSceneNode()->addChild(mMesh);
 }
 
 Vector3 reflect(Vector3 i, Vector3 n)
@@ -59,87 +72,36 @@ void Portal::update(Real delta)
 {
 	if(mSibling)
 	{
-		// transform camera pos/direction relative to the 1st portal into the 2nd portal's coordinate space
-
-		// get observer position
+		//mNode->setOrientation(Quaternion::IDENTITY);
 		Camera* mainCam = mOgre->getActiveCamera();
-		Vector3 mpos = mainCam->getAbsolutePosition();
-		Vector3 mdir = mainCam->getAbsoluteDirection();
 
-		// for convenience
-		Vector3 portal1 = mMesh->getPosition();
-		Vector3 portal2 = mSibling->mMesh->getPosition();
+		Vector3 localPos = mMesh->worldToLocalPosition(mainCam->getAbsolutePosition());
+		Quaternion localOri = mMesh->worldToLocalOrientation(mainCam->getCamAbsoluteOrientation());
 
-		// TAKE 3 (3rd times the... ahhh fuck forget it)
+		//Quaternion realOrientation = localOri;	
+	
+		//Vector3 dir = realOrientation * Vector3::NEGATIVE_UNIT_Z;
+		//Vector3 rdir = reflect(dir, mDirection);
+		//Vector3 up = realOrientation * Vector3::UNIT_Y;
+		//Quaternion derivedOrientation = dir.getRotationTo(rdir, up) * realOrientation;
 
-		//Vector3 pos = mpos - portal1;
-		//mCamera->setPosition(pos);
+		//localPos.x *= -1;
+		//localPos.z *= -1;
 
-		// relative to portal
-		//Vector3 relative = mpos - mMesh->getPosition();
-		//relative = mMesh->getOrientation().inverse() * relative;
+		//Vector3 derivedPos = reflect(localPos, mDirection);
 
-		mCamera->setPosition(mMesh->worldToLocalPosition(mainCam->getAbsolutePosition()));
-		mCamera->setOrientation(mMesh->worldToLocalOrientation(mainCam->getCamAbsoluteOrientation()));
-		mCamera->enableReflection(mSibling->mDirection,
-			- mSibling->mDirection.dotProduct(mSibling->mMesh->getPosition() * -1));
+		mCamera->setPosition(localPos);
+		mCamera->setOrientation(localOri);
+		//mCamera->setCustomNearClip(mSibling->mDirection,
+		//	-mSibling->mDirection.dotProduct(mSibling->mMesh->getPosition() * -1));
+
+		//mNode->yaw(180.f);
+
+		//mCamera->enableReflection(mSibling->mDirection,
+		//	-mSibling->mDirection.dotProduct(mSibling->mMesh->getPosition() * -1));
+		//mCamera->enableReflection(mDirection,
+		//	-mDirection.dotProduct(mMesh->getPosition() * -1));
 		
-		
-		//mCamera->setCamOrientation(Quaternion::IDENTITY);
-
-		//mCamera->setPosition(relative);
-		//mCamera->setOrientation(mMesh->getOrientation().inverse());
-
-		//mCamera->setCamPosition();
-		//mCamera->setCamOrientation(Quaternion::IDENTITY);
-
-		//mCamera->setDirection(mdir);
-		//mCamera->setCamOrientation(mMesh->getOrientation() * mCamera->getCamOrientation());
-
-		// TAKE 2
-
-		/*Vector3 mydir = mDirection * -1;
-		Vector3 sibdir = mSibling->mDirection;
-		
-		Quaternion rotation = mydir.getRotationTo(sibdir);
-		Vector3 p1spacepos = mpos - portal1;
-
-		Vector3 p2spacepos = rotation * p1spacepos;
-		Vector3 p2spacedir = rotation * mdir;
-
-		Vector3 wspacepos = p2spacepos + portal2;
-
-		mCamera->setPosition(wspacepos);
-		mCamera->setDirection(p2spacedir);*/
-
-		//mCamera->setPosition(portal2 - mSibling->mDirection * 4);
-		//mCamera->setDirection(mSibling->mDirection);
-
-		// TAKE 1
-		/*Vector3 ind = mDirection;
-		Vector3 ind2 = mSibling->mDirection;
-		//ind.x *= -1;
-		//ind.x *= -1;
-		//ind.z *= -1;
-		//ind2.x *= -1;
-		//ind2.y *= -1;
-		Quaternion portal1Rotation = SceneNode::hack(ind);
-		Quaternion portal2Rotation = SceneNode::hack(ind2 * -1);
-
-		// observer position in portal1's coordinate space
-		Vector3 portalSpacePos = mpos - portal1;
-		// rotate into each space
-		portalSpacePos = portal1Rotation * portalSpacePos;// inverse?
-		portalSpacePos = portal2Rotation * portalSpacePos;
-		// translate into portal2 space
-		portalSpacePos += portal2;
-		Vector3 portalSpaceDir;
-		// rotate direction
-		portalSpaceDir = portal1Rotation * (mdir);
-		portalSpaceDir = portal2Rotation * portalSpaceDir;
-		// set it
-		mCamera->setPosition(portalSpacePos);
-		mCamera->setDirection(portalSpaceDir);*/
 	}
 }
 
@@ -166,14 +128,12 @@ Quaternion getRotationTo(const Vector3& orig,
 	// If dot == 1, vectors are the same
 	if(d >= 1.0f)
 	{
-		std::cout<<"ID\n";
 		id = true;
 		return Quaternion::IDENTITY;
 	}
 
 	if(d < (1e-6f - 1.0f))
 	{
-		std::cout<<"fallback!\n";
 		if(fallbackAxis != Vector3::ZERO)
 		{
 			// rotate 180 degrees about the fallback axis
