@@ -3,6 +3,7 @@
 
 #include "ChunkGenerator.h"
 #include "BasicChunk.h"
+#include "ThreadPool.h"
 
 class BasicChunkGenerator : public ChunkGenerator
 {
@@ -11,21 +12,38 @@ public:
 	BasicChunkGenerator();
 	virtual ~BasicChunkGenerator();
 
+	/** Updates meshes that have been built, etc runs on the main thread */
 	virtual void update(Real delta);
 
+	/** The background thread loop */
 	virtual void backgroundThread();
 
-	int numGeneratedChunks;
-	int numActiveChunks;
+	/** Get the number of generated chunks
+	 *	@remarks Since this is being used for nothing more than a debug overlay
+	 *		this isn't protected by a mutex, so no guarantees that it won't explode... */
+	int getNumGeneratedChunks(){return mNumGeneratedChunks;}
 
-	static void workerThread(BasicChunkGenerator* gen);
-	void generate();
-	void activate();
-	void apply();
-	void light();
-	void build();
+	/** Get the number of active chunks
+	 *	@remarks Since this is being used for nothing more than a debug overlay
+	 *		this isn't protected by a mutex, so no guarantees that it won't explode... */
+	int getNumActiveChunks(){return mNumActiveChunks;}
 
 private:
+
+	/** Generates any needed chunks */
+	void generate();
+
+	/** Activates any needed chunks */
+	void activate();
+
+	/** Apply changes to chunks */
+	void apply();
+
+	/** Do lighting calculations */
+	void light();
+
+	/** Build chunk meshes */
+	void build();
 
 	// The chunks themselves
 	std::map<InterChunkCoords, BasicChunk*> mChunks;
@@ -38,13 +56,21 @@ private:
 	std::map<BasicChunk*, bool> mBuiltChunks; 
 	boost::mutex mBuiltListMutex;
 
-	struct Job
-	{
-		virtual void execute() = 0;
-	};
+	// thread pool for multithreaded chunk calculations
+	ThreadPool* mThreadPool;
 
-	struct BuildJob : public Job
+	// Total number of chunks generated
+	int mNumGeneratedChunks;
+
+	// Number of currently active chunks
+	int mNumActiveChunks;
+
+	//---------------------------------------------------------------------------
+	/** A ThreadPool job for building a Chunk's mesh */
+	class BuildJob : public ThreadPool::Job
 	{
+	public:
+
 		BuildJob(BasicChunk* c, BasicChunkGenerator* gen, bool _full)
 			:chunk(c),generator(gen),full(_full){}
 
@@ -67,11 +93,15 @@ private:
 		BasicChunkGenerator* generator;
 		bool full;
 	};
+	//---------------------------------------------------------------------------
 
-	struct LightJob : public Job 
+	/** A ThreadPool job for claulating a Chunk's lighting */
+	class LightJob : public ThreadPool::Job 
 	{
-		LightJob(const std::map<BasicChunk*, bool>& _chunks, BasicChunkGenerator* gen,
-			BasicChunk* c, bool secondary)
+	public:
+
+		LightJob(const std::map<BasicChunk*, bool>& _chunks,
+			BasicChunkGenerator* gen,BasicChunk* c, bool secondary)
 			:chunks(_chunks),generator(gen),chunk(c){}
 
 		void execute()
@@ -84,40 +114,7 @@ private:
 		BasicChunkGenerator* generator;
 		bool second;
 	};
-
-	void addJob(Job* j)
-	{
-		boost::mutex::scoped_lock lock(mJobMutex);
-		mJobs.push_back(j);
-		++mPendingJobs;
-	}
-
-	void startWorkers()
-	{
-		boost::mutex::scoped_lock lock(mJobMutex);
-		if(!mJobs.empty())
-			// just notify one, it'll notify more if need be
-			mJobSignal.notify_one();
-	}
-
-	void waitForJobs()
-	{
-		// wait for all current jobs to complete
-		boost::mutex::scoped_lock lock(mJobMutex);
-		while(mPendingJobs > 0)
-			mJobDoneSignal.wait(lock);
-	}
-
-	boost::mutex mJobMutex;
-	std::deque<Job*> mJobs;
-	unsigned int mActiveJobs;
-	unsigned int mPendingJobs;
-
-	boost::condition_variable_any mJobSignal;
-	boost::condition_variable_any mJobDoneSignal;
-
-	boost::thread_group mThreadPool;
-
+	//---------------------------------------------------------------------------
 };
 
 #endif

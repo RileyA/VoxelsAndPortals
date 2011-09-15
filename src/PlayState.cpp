@@ -29,7 +29,7 @@ void PlayState::init()
 	mPhysics = dynamic_cast<BulletSubsystem*>(mEngine->getSubsystem("BulletSubsystem"));
 
 	// start up input, grab the mouse
-	mInput->initInput(mGfx->getWindowHandle(), true);
+	mInput->initInput(mGfx->getWindowHandle(), false);
 
 	// start up bullet for collision detection
 	mPhysics->startSimulation();
@@ -125,9 +125,9 @@ void PlayState::update(Real delta)
 	mBatchCountText->setCaption("Batches: " 
 		+ StringUtils::toString(mGfx->getBatchCount()));
 	mActiveChunkCountText->setCaption("Active Chunks: " +
-		StringUtils::toString(mGen->numActiveChunks));
+		StringUtils::toString(mGen->getNumActiveChunks()));
 	mGeneratedChunkCountText->setCaption("Generated Chunks: " +
-		StringUtils::toString(mGen->numGeneratedChunks));
+		StringUtils::toString(mGen->getNumGeneratedChunks()));
 
 	// delete a block
 	if(mInput->wasButtonPressed("MB_Right"))

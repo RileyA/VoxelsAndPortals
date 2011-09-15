@@ -4,10 +4,9 @@
 BasicChunkGenerator::BasicChunkGenerator()
 {
 	mDone = false;
-	mActiveJobs = 0;
-	mPendingJobs = 0;
-	numGeneratedChunks = 0;
-	numActiveChunks = 0;
+	mNumGeneratedChunks = 0;
+	mNumActiveChunks = 0;
+	mThreadPool = 0;
 }
 //---------------------------------------------------------------------------
 
@@ -22,16 +21,12 @@ BasicChunkGenerator::~BasicChunkGenerator()
 
 void BasicChunkGenerator::backgroundThread()
 {
-	// build the thread pool
-	for(int i = 0; i < 6; ++i)
-	{
-		mThreadPool.add_thread(new boost::thread(&workerThread, this));
-	}
+	// make thread pool
+	mThreadPool = new ThreadPool(6);
 	
 	while(true)
 	{
-		// sleep for a sec, just so this isn't _constantly_ running, esp.
-		// when no updates are queued...
+		// sleep for a sec, just so this isn't _constantly_ running...
 		boost::this_thread::sleep(boost::posix_time::milliseconds(30)); 
 
 		// Check if it's been signalled to exit
@@ -40,17 +35,8 @@ void BasicChunkGenerator::backgroundThread()
 
 			if(mDone)
 			{
-				// flood the job queue with null jobs...
-				for(int i = 0; i < 12; ++i)
-					addJob(0);
-
-				// start the workers (no workers should be working at this point)
-				startWorkers();
-
-				//  let them all wrap up
-				mThreadPool.join_all();
-
-				// break outta the loop
+				delete mThreadPool;
+				mThreadPool = 0;
 				break;
 			}
 		}
@@ -69,13 +55,13 @@ void BasicChunkGenerator::backgroundThread()
 	
 		// do lighting calculations (using thread pool)
 		light();
-		startWorkers();
-		waitForJobs();
+		mThreadPool->startWorkers();
+		mThreadPool->waitForWorkers();
 
 		// build meshes (using thread pool)
 		build();
-		startWorkers();
-		waitForJobs();
+		mThreadPool->startWorkers();
+		mThreadPool->waitForWorkers();
 	}
 }
 //---------------------------------------------------------------------------
@@ -109,7 +95,7 @@ void BasicChunkGenerator::generate()
 	{
 		if(mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos) == mChunks.end())
 		{
-			++numGeneratedChunks;
+			++mNumGeneratedChunks;
 
 			InterChunkCoords loc(i,j,k);
 			loc = loc + mInterChunkPos;
@@ -180,7 +166,7 @@ void BasicChunkGenerator::activate()
 		{
 			if(iter->second->activate())
 			{
-				++numActiveChunks;
+				++mNumActiveChunks;
 				boost::mutex::scoped_lock lock(mDirtyListMutex);
 				mDirtyChunks[iter->second] = true;
 				newlyActiveChunks.push_back(iter->second);
@@ -314,7 +300,7 @@ void BasicChunkGenerator::apply()
 		}
 	}
 	
-	// make sure to clear otu the list
+	// make sure to clear out the list
 	mChangedChunks.clear();
 }
 //---------------------------------------------------------------------------
@@ -329,7 +315,7 @@ void BasicChunkGenerator::light()
 	{
 		// we have to clear lighting first
 		it->first->clearLighting();
-		addJob(new LightJob(mDirtyChunks, this, it->first, it->second));
+		mThreadPool->addJob(new LightJob(mDirtyChunks, this, it->first, it->second));
 	}
 }
 //---------------------------------------------------------------------------
@@ -343,66 +329,10 @@ void BasicChunkGenerator::build()
 
 	for(it; it != mDirtyChunks.end(); ++it)
 	{
-		addJob(new BuildJob(it->first, this, it->second));
+		mThreadPool->addJob(new BuildJob(it->first, this, it->second));
 	}
 
 	// all dirty chunks are now pending rebuilds, so we can just clear the whole thing
 	mDirtyChunks.clear();
-}
-//---------------------------------------------------------------------------
-
-void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
-{
-	Job* assigned = 0;
-	bool moreJobs = false;
-	bool hasJob = false; // poor unemployed worker thread.. ;_;
-
-	// the only way it will terminate is if it receives a null job
-	while(true)
-	{
-		// lock to access job queue
-		{
-			boost::mutex::scoped_lock lock(gen->mJobMutex);
-
-			// skip if this is the first iteration
-			if(hasJob)
-			{
-				// must've just wrapped up a job
-				--gen->mActiveJobs;
-				--gen->mPendingJobs;
-
-				// notify if there are no jobs left
-				if(gen->mPendingJobs == 0)
-					gen->mJobDoneSignal.notify_one();
-	
-				// if the last job was null, then terminate
-				if(!assigned)
-					return;
-				else
-					delete assigned;
-			}
-
-			// loop on the condition, to handle spurious wakeups
-			// note that this will get skipped if jobs remain in the queue after being awoken
-			while(gen->mJobs.empty())
-				gen->mJobSignal.wait(lock);
-
-			// if it gets here, there must be a job for it...
-			assigned = gen->mJobs.front();
-			gen->mJobs.pop_front();
-			hasJob = true;
-			++gen->mActiveJobs;
-
-			moreJobs = !gen->mJobs.empty();
-		}
-
-		// now that the mutex is unlocked, if there's still work to be done, notify another thread
-		if(moreJobs)
-			gen->mJobSignal.notify_one();
-
-		// actually do the work...
-		if(assigned)
-			assigned->execute();
-	}
 }
 //---------------------------------------------------------------------------

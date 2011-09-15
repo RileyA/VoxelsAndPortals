@@ -5,6 +5,8 @@ ThreadPool::ThreadPool(int numThreads)
 {
 	for(int i = 0; i < numThreads; ++i)
 		mThreadPool.add_thread(new boost::thread(&workerThread, this));
+	mActiveJobs = 0;
+	mPendingJobs = 0;
 }
 //---------------------------------------------------------------------------
 

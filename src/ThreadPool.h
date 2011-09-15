@@ -6,6 +6,7 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+
 /** A simple and very limited interface that allows you to make a pool of threads
  *	do work from a queue of jobs */
 class ThreadPool
@@ -21,7 +22,7 @@ public:
 	class Job
 	{
 	public:
-		virtual void execute();
+		virtual void execute() = 0;
 	};
 
 	/** Add a job to the queue
