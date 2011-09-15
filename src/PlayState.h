@@ -23,42 +23,43 @@ public:
 	virtual void update(Real delta);
 	virtual void deinit();
 
+	/** Used for updating portal cameras */
 	void updateCam(const Message& m);
 
 private:
 
-	ChunkManager* mChunkMgr;
+	// Subsystems
 	OgreSubsystem* mGfx;
 	OISSubsystem* mInput;
 	ALSubsystem* mAudio;
 	GUISubsystem* mGUI;
 	BulletSubsystem* mPhysics;
 
+	// Chunk stuff
+	ChunkManager* mChunkMgr;
 	BasicChunkGenerator* mGen;
+
+	// Plain 'ol FPS camera
 	FPSCamera* mCam;
-
-	Caption* fps;
-	Caption* batchCount;
-	Caption* gcCount;
-	Caption* acCount;
-	Caption* selection;
-	Caption* camPos;
-
-	int block;
-
-	Camera* portalcam1;
-	Camera* portalcam2;
-
-	SceneNode* pn1;
-	SceneNode* pn2;
-
-	Portal* port1;
-	Portal* port2;
-
-	Quaternion savedOri;
-	Vector3 savedPos;
-
+	
+	// GUI Mesh
 	ScreenMesh* mUI;
+
+	// Debug GUI captions
+	Caption* mFpsText;
+	Caption* mBatchCountText;
+	Caption* mGeneratedChunkCountText;
+	Caption* mActiveChunkCountText;
+	Caption* mSelectionText;
+	Caption* mCameraPositionText;
+
+	// Currently selected block
+	int mBlockSelected;
+
+	// The portals TODO: make a separate class for managing portal shenanigans 
+	// (inc. rendering stuff, gracefully handling >2 portals, etc...)
+	Portal* mPortals[2];
+
 };
 
 #endif
