@@ -17,6 +17,7 @@ set(SOURCE_FILES
 	main.cpp
 	FPSCamera.cpp
 	Portal.cpp
+	ThreadPool.cpp
 	)
 
 set(HEADER_FILES
@@ -31,6 +32,7 @@ set(HEADER_FILES
 	TerrainChunk.h
 	FPSCamera.h
 	Portal.h
+	ThreadPool.h
 	)
 
 add_executable(TechDemo ${SOURCE_FILES} ${HEADER_FILES} )

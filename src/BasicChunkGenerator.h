@@ -11,62 +11,32 @@ public:
 	BasicChunkGenerator();
 	virtual ~BasicChunkGenerator();
 
-	static void generateThread(BasicChunkGenerator* gen);
-
 	virtual void update(Real delta);
 
-	void startThread();
-
-	void stopThread();
-
-	void notifyDirtyChunk(BasicChunk* ch);
-
-	void setPlayerPos(Vector3 pos)
-	{
-		boost::mutex::scoped_lock lock(mPlayerPosMutex);
-		mPlayerPos = pos;
-	}
-
-	// these are all to be used in the thread, and there only! (ish, probably)
-	void generate();
-	void apply();
-	void light();
-	void build();
-
-	static void lightJob(std::list<BasicChunk*> chunks, std::set<BasicChunk*> allChunks);
-	static void buildJob(BasicChunkGenerator* gen, std::list<BasicChunk*> c);
-
-	static void workerThread(BasicChunkGenerator* gen);
-
-	void notifyChunkChange(BasicChunk* c);
+	virtual void backgroundThread();
 
 	int numGeneratedChunks;
 	int numActiveChunks;
+
+	static void workerThread(BasicChunkGenerator* gen);
+	void generate();
+	void activate();
+	void apply();
+	void light();
+	void build();
 
 private:
 
 	// The chunks themselves
 	std::map<InterChunkCoords, BasicChunk*> mChunks;
 
-	// The last known position of the player
-	Vector3 mPlayerPos;
-	boost::mutex mPlayerPosMutex;
-
-	boost::mutex mExitLock;
-	boost::thread mThread;
-	bool mDone;
-
-	boost::mutex mChangeSetMutex;
-	std::set<BasicChunk*> mChangedChunks; 
-
-	boost::mutex mDirtyListMutex;
 	// the bool is whether it needs a full build (just lighting otherwise)
 	std::map<BasicChunk*, bool> mDirtyChunks; 
+	boost::mutex mDirtyListMutex;
 
-
-	boost::mutex mBuiltListMutex;
-	// the bool is whether it needs a full build (just lighting otherwise)
+	// the bool is whether it got a full build (just lighting otherwise)
 	std::map<BasicChunk*, bool> mBuiltChunks; 
+	boost::mutex mBuiltListMutex;
 
 	struct Job
 	{

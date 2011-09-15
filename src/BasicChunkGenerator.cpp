@@ -9,6 +9,7 @@ BasicChunkGenerator::BasicChunkGenerator()
 	numGeneratedChunks = 0;
 	numActiveChunks = 0;
 }
+//---------------------------------------------------------------------------
 
 BasicChunkGenerator::~BasicChunkGenerator()
 {
@@ -17,118 +18,102 @@ BasicChunkGenerator::~BasicChunkGenerator()
 
 	// delete all the chunks...
 }
+//---------------------------------------------------------------------------
 
-void BasicChunkGenerator::generateThread(BasicChunkGenerator* gen)
+void BasicChunkGenerator::backgroundThread()
 {
 	// build the thread pool
 	for(int i = 0; i < 6; ++i)
 	{
-		gen->mThreadPool.add_thread(new boost::thread(&workerThread, gen));
+		mThreadPool.add_thread(new boost::thread(&workerThread, this));
 	}
 	
 	while(true)
 	{
+		// sleep for a sec, just so this isn't _constantly_ running, esp.
+		// when no updates are queued...
 		boost::this_thread::sleep(boost::posix_time::milliseconds(30)); 
 
+		// Check if it's been signalled to exit
 		{
-			boost::mutex::scoped_lock lock(gen->mExitLock);
-			if(gen->mDone)
+			boost::mutex::scoped_lock lock(mExitLock);
+
+			if(mDone)
 			{
 				// flood the job queue with null jobs...
 				for(int i = 0; i < 12; ++i)
-					gen->addJob(0);
+					addJob(0);
+
 				// start the workers (no workers should be working at this point)
-				gen->startWorkers();
+				startWorkers();
+
 				//  let them all wrap up
-				gen->mThreadPool.join_all();
+				mThreadPool.join_all();
+
+				// break outta the loop
 				break;
 			}
 		}
 
-		Real tt = TimeManager::getPtr()->getTimeDecimal();
-		gen->generate();
+		// update player interchunk coords
+		updatePlayerPos();
 
-		gen->apply();
+		// generate and activate
+		generate();
+
+		// manage activation/deactivation of chunks
+		activate();
+
+		// apply any changes to chunks
+		apply();
 	
+		// do lighting calculations (using thread pool)
+		light();
+		startWorkers();
+		waitForJobs();
 
-		gen->light();
-		gen->waitForJobs();
-
-		//tt = TimeManager::getPtr()->getTimeDecimal() - tt;
-		//if(tt > 0.0001)
-		//	std::cout<<"Lighting took: "<<tt<<"\n";
-
-		gen->build();
-		gen->waitForJobs();
-		//if(tt > 0.0001)
-		//	std::cout<<"Updates took: "<<tt<<"\n";
+		// build meshes (using thread pool)
+		build();
+		startWorkers();
+		waitForJobs();
 	}
 }
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::update(Real delta)
 {
 	boost::mutex::scoped_lock lock(mBuiltListMutex);
 
-	for(std::map<BasicChunk*, bool>::iterator it = mBuiltChunks.begin(); it != mBuiltChunks.end(); ++it)
+	// update all meshes that have been built
+	for(std::map<BasicChunk*, bool>::iterator it = mBuiltChunks.begin(); 
+		it != mBuiltChunks.end(); ++it)
 	{
-	//	if(it->second)
-	//		std::cout<<"Full build\n";
-	//	else
-	//		std::cout<<"Light build\n";
-		//{
-			it->first->buildMesh(it->second);
-		//}
+		it->first->buildMesh(it->second);
 	}
 
 	mBuiltChunks.clear();
 }
-
-void BasicChunkGenerator::startThread()
-{
-	mThread = boost::thread(&BasicChunkGenerator::generateThread, this);
-}
-
-void BasicChunkGenerator::stopThread()
-{
-	boost::mutex::scoped_lock lock(mExitLock);
-	mDone = true;
-}
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::generate()
 {
 	// generate and activate chunks (also eventually deactivate some of them..)
-	Vector3 playerPos;
 
-	// get player position all thread safe-like
-	{
-		boost::mutex::scoped_lock lock(mPlayerPosMutex);
-		playerPos = mPlayerPos;
-	}
-
-	// translate player position into interchunk coordinates
-	// apply magical offset
-	//playerPos += OFFSET; // now there's a constant asking for a conflict...
-	
-	// floor and divide
-	int x = floor(playerPos.x);
-	int y = floor(playerPos.y);
-	int z = floor(playerPos.z);
-	x /= CHUNK_SIZE_X;
-	y /= CHUNK_SIZE_Y;
-	z /= CHUNK_SIZE_Z;
-
+	// keep a list of newly generated chunks
 	std::list<std::pair<BasicChunk*,InterChunkCoords> > newChunks;
 
-	// generate (this could be threaded if I were generating anything expensive)
+	// generate (this could be threaded if it were generating anything expensive)
 	for(int i = -2; i <= 2; ++i)
 		for(int j = -2; j <= 2; ++j)
 			for(int k = -2; k <= 2; ++k)
 	{
-		if(mChunks.find(InterChunkCoords(x + i, y + j, z + k)) == mChunks.end())
+		if(mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos) == mChunks.end())
 		{
 			++numGeneratedChunks;
-			// make the new chunk(!1!!1)
-			InterChunkCoords loc(x + i, y + j, z + k);
+
+			InterChunkCoords loc(i,j,k);
+			loc = loc + mInterChunkPos;
+
 			BasicChunk* c = new BasicChunk(this, loc);
 
 			if(loc.x==0&&loc.y==0&&loc.z==0)
@@ -137,46 +122,31 @@ void BasicChunkGenerator::generate()
 				boost::mutex::scoped_lock lock(mDirtyListMutex);
 				mDirtyChunks[c] = true;
 
-				byte xx = rand()%CHUNK_SIZE_X;
-				byte yy = rand()%CHUNK_SIZE_Y;
-				byte zz = rand()%CHUNK_SIZE_Z;
-				c->lights.push_back(ChunkCoords(xx,yy,zz, 15));
-				//c->blocks[xx][yy][zz] = 6;
-
+				byte x = rand()%CHUNK_SIZE_X;
+				byte y = rand()%CHUNK_SIZE_Y;
+				byte z = rand()%CHUNK_SIZE_Z;
+				c->lights.push_back(ChunkCoords(x,y,z, 15));
 
 				for(int f = 0; f < 20; ++f) 
 				{
-					xx = rand()%CHUNK_SIZE_X;
-					yy = rand()%CHUNK_SIZE_Y;
-					zz = rand()%CHUNK_SIZE_Z;
-					c->lights.push_back(ChunkCoords(xx,yy,zz, 15));
-					//c->blocks[xx][yy][zz] = 6;
+					x = rand()%CHUNK_SIZE_X;
+					y = rand()%CHUNK_SIZE_Y;
+					z = rand()%CHUNK_SIZE_Z;
+					c->lights.push_back(ChunkCoords(x,y,z, 15));
 				}
 			}
 			else
 			{
 				memset(c->blocks, 2, CHUNK_VOLUME);
-				//c->blocks[8][8][8] = 0;
-				//c->blocks[8][9][8] = 0;
-
-				/*for(int l = 0; l < CHUNK_SIZE_X; ++l)
-					for(int m = 0; m < CHUNK_SIZE_Z; ++m)
-				{
-					c->blocks[l][rand()%14+2][m] = rand()%6;
-				}*/
 			}
 
-				
 			memset(c->light, 0, CHUNK_VOLUME);
 			mChunks[loc] = c;
 			newChunks.push_back(std::make_pair(c, loc));
 		}
 	}
 
-	//if(newChunks.size())
-	//	std::cout<<"Generated "<<newChunks.size()<<" new chunks!\n";
-
-	// neighborify(TM) the new chunks and their neighbors
+	// hook all new chunks up with their neighbors (and vice versa)
 	for(std::list<std::pair<BasicChunk*, InterChunkCoords> >::iterator it = 
 		newChunks.begin(); it != newChunks.end(); ++it)
 	{	
@@ -191,16 +161,21 @@ void BasicChunkGenerator::generate()
 			}
 		}
 	}
+}
+//---------------------------------------------------------------------------
 
+void BasicChunkGenerator::activate()
+{
+	// keep a list of chunks that have been activated
 	std::list<BasicChunk*> newlyActiveChunks;
 
-	// activate
+	// activate all chunks within a 3x3 cube around the player
 	for(int i = -1; i <= 1; ++i)
 		for(int j = -1; j <= 1; ++j)
 			for(int k = -1; k <= 1; ++k)
 	{
 		std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
-			mChunks.find(InterChunkCoords(x + i, y + j, z + k));
+			mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos);
 		if(iter != mChunks.end())
 		{
 			if(iter->second->activate())
@@ -213,7 +188,7 @@ void BasicChunkGenerator::generate()
 		}
 	}
 
-	// setup newly active chunks' neighbors for lighting update
+	// setup newly active chunks' neighbors for a lighting update
 	for(std::list<BasicChunk*>::iterator it = 
 		newlyActiveChunks.begin(); it != newlyActiveChunks.end(); ++it)
 	{
@@ -221,37 +196,52 @@ void BasicChunkGenerator::generate()
 			for(int j = -1; j <= 1; ++j)
 				for(int k = -1; k <= 1; ++k)
 		{
+			InterChunkCoords temp = (*it)->getInterChunkPosition() + InterChunkCoords(i,j,k);
+			
 			std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
-				mChunks.find(InterChunkCoords(i + (*it)->position.x, j + (*it)->position.x, k + (*it)->position.x));
+				mChunks.find(temp);
+
+			// if the neighbor exists, mark it for light update
 			if(iter != mChunks.end())
 			{
+				// look for it in the dirty chunk list...
 				std::map<BasicChunk*, bool>::iterator itera = 
 					mDirtyChunks.find(iter->second);
+
+				// if it's already slated for an update, leave it alone, since
+				// either it's already setup for lighting, or it needs a full build
 				if(itera == mDirtyChunks.end())
-				{
 					mDirtyChunks[iter->second] = false;
-				}
 			}
 		}
 	}
-	
 }
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::apply()
 {
 	// apply changes to chunks (only time chunk block data will ever change outside of creation)
 	boost::mutex::scoped_lock lock(mChangeSetMutex);
 
-	for(std::set<BasicChunk*>::iterator it = mChangedChunks.begin(); it != mChangedChunks.end(); ++it)
+	// loop through all chunks that have reported changes
+	for(std::set<Chunk*>::iterator it = mChangedChunks.begin(); it != mChangedChunks.end(); ++it)
 	{
-		BasicChunk* bc = (*it);
+		BasicChunk* bc = static_cast<BasicChunk*>(*it);
+
+		// lock this chunk's mutex
 		boost::mutex::scoped_lock lock(bc->mBlockMutex);
 
+		// it may be the case that a chunk has updates that don't actually change anything
 		bool needsRebuild = false;
-		bool relight = true;
 
-		std::list<BasicChunk*> changedNeighbors;
+		// in some cases recalculating lighting is unneeded
+		bool relight = false;
 
+		// keep track of neighbors that need updates
+		//std::list<BasicChunk*> changedNeighbors;
+		bool changedNeighbors[6] = {0,0,0,0,0,0};
+
+		// TODO: account for updates that cancel each other out
 		for(std::list<ChunkCoords>::iterator i = bc->mChanges.begin(); i != bc->mChanges.end(); ++i)
 		{
 			if(bc->blocks[(*i).c.x][(*i).c.y][(*i).c.z] != (*i).c.data)
@@ -259,43 +249,44 @@ void BasicChunkGenerator::apply()
 				bc->blocks[(*i).c.x][(*i).c.y][(*i).c.z] = (*i).c.data;
 				needsRebuild = true;
 
-				// no need to redo lighting in some cases, that I will test later...
-				//if(bc->getLightAt((*i)) == 0)
-				//{
-				//	relight = false;
-				//}
+				// TODO test out lighting stuff (I think it'll entail checking surrounding blocks,
+				// and if all are completely black, then no lighting update is needed...)
+				relight = true;
 
+				// if on edge, a neighbor will need update
+				// TODO: optimize out any cases where this may not be needed...
 				if(i->onEdge())
 				{
 					if(i->c.x == 0)
-						changedNeighbors.push_back(bc->neighbors[0]);
+						changedNeighbors[0] = true;
 					else if(i->c.x == CHUNK_SIZE_Y-1)
-						changedNeighbors.push_back(bc->neighbors[1]);
+						changedNeighbors[1] = true;
 					if(i->c.y == 0)
-						changedNeighbors.push_back(bc->neighbors[2]);
+						changedNeighbors[2] = true;
 					else if(i->c.y == CHUNK_SIZE_Y-1)
-						changedNeighbors.push_back(bc->neighbors[3]);
+						changedNeighbors[3] = true;
 					if(i->c.z == 0)
-						changedNeighbors.push_back(bc->neighbors[4]);
+						changedNeighbors[4] = true;
 					else if(i->c.z == CHUNK_SIZE_Z-1)
-						changedNeighbors.push_back(bc->neighbors[5]);
+						changedNeighbors[5] = true;
 				}
 			}
 		}
 
+		// make sure to clear the changes
 		bc->mChanges.clear();
 
-		if(needsRebuild)//(*it)->applyChanges())
+		if(needsRebuild)
 		{
 			boost::mutex::scoped_lock lock(mDirtyListMutex);
 
-			for(std::list<BasicChunk*>::iterator cn = changedNeighbors.begin(); cn != changedNeighbors.end();
-				++cn)
+			for(int i = 0; i < 6; ++i)
 			{
-				mDirtyChunks[*cn] = true;
+				if(changedNeighbors[i])
+					mDirtyChunks[bc->neighbors[i]] = true;
 			}
 
-			mDirtyChunks[*it] = true;
+			mDirtyChunks[bc] = true;
 		}
 
 		if(needsRebuild || relight)
@@ -305,24 +296,28 @@ void BasicChunkGenerator::apply()
 				for(int j = -1; j <= 1; ++j)
 					for(int k = -1; k <= 1; ++k)
 			{
-				std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
-					mChunks.find(InterChunkCoords(bc->position.x + i, 
-						bc->position.y + j, bc->position.z + k));
+				InterChunkCoords temp = bc->getInterChunkPosition() 
+					+ InterChunkCoords(i,j,k);
+				std::map<InterChunkCoords,BasicChunk*>::iterator iter =
+					mChunks.find(temp);
+
 				if(iter != mChunks.end())
 				{
 					std::map<BasicChunk*, bool>::iterator itera = 
 						mDirtyChunks.find(iter->second);
+
+					// only set if it isn't already there
 					if(itera == mDirtyChunks.end())
-					{
 						mDirtyChunks[iter->second] = false;
-					}
 				}
 			}
 		}
 	}
 	
+	// make sure to clear otu the list
 	mChangedChunks.clear();
 }
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::light()
 {
@@ -332,12 +327,12 @@ void BasicChunkGenerator::light()
 	// all dirty chunks need relighting (probably, optimization can come later...)
 	for(it; it != mDirtyChunks.end(); ++it)
 	{
+		// we have to clear lighting first
 		it->first->clearLighting();
 		addJob(new LightJob(mDirtyChunks, this, it->first, it->second));
 	}
-
-	startWorkers();
 }
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::build()
 {	
@@ -353,10 +348,8 @@ void BasicChunkGenerator::build()
 
 	// all dirty chunks are now pending rebuilds, so we can just clear the whole thing
 	mDirtyChunks.clear();
-
-	// start up the threads
-	startWorkers();
 }
+//---------------------------------------------------------------------------
 
 void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
 {
@@ -367,7 +360,7 @@ void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
 	// the only way it will terminate is if it receives a null job
 	while(true)
 	{
-
+		// lock to access job queue
 		{
 			boost::mutex::scoped_lock lock(gen->mJobMutex);
 
@@ -378,6 +371,7 @@ void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
 				--gen->mActiveJobs;
 				--gen->mPendingJobs;
 
+				// notify if there are no jobs left
 				if(gen->mPendingJobs == 0)
 					gen->mJobDoneSignal.notify_one();
 	
@@ -394,10 +388,10 @@ void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
 				gen->mJobSignal.wait(lock);
 
 			// if it gets here, there must be a job for it...
-			hasJob = true;
-			++gen->mActiveJobs;
 			assigned = gen->mJobs.front();
 			gen->mJobs.pop_front();
+			hasJob = true;
+			++gen->mActiveJobs;
 
 			moreJobs = !gen->mJobs.empty();
 		}
@@ -411,9 +405,4 @@ void BasicChunkGenerator::workerThread(BasicChunkGenerator* gen)
 			assigned->execute();
 	}
 }
-
-void BasicChunkGenerator::notifyChunkChange(BasicChunk* c)
-{
-	boost::mutex::scoped_lock lock(mChangeSetMutex);
-	mChangedChunks.insert(c);
-}
+//---------------------------------------------------------------------------
