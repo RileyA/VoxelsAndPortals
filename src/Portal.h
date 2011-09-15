@@ -15,38 +15,44 @@ public:
 	virtual ~Portal();
 
 	void update(Real delta);
-
 	void setSibling(Portal* p);
-
-	void init();
 
 	void setDirection(Vector3 d)
 	{
 		mDirection = d;
 		mMesh->setOrientation(Quaternion::IDENTITY);
 		mMesh->setDirectionHack(d);
-		//mMesh->setOrientation( 
-		//	Vector3::UNIT_Z.getRotationTo(mDirection, 
-		//		Vector3(0,0,1)));
-
-		//mMesh->setOrientation(Quaternion::IDENTITY);
-		//mMesh->yaw(-d.angleBetween(Vector3::UNIT_Z));
-
-		/*if(mDirection == Vector3::UNIT_Z)
-		{
-			mMesh->setOrientation(Quaternion::IDENTITY);
-			//mMesh->roll(180.f);
-		}
-		else
-			mMesh->setOrientation(Vector3::UNIT_Z.getRotationTo(mDirection, 
-				Vector3(0,1,0)));*/
+		mBorder->setOrientation(Quaternion::IDENTITY);
+		mBorder->setDirectionHack(d);
 	}
+
+	void setDirection(Vector3 d, Vector3 up)
+	{
+		mDirection = d;
+		Quaternion q;
+		q.fromAxes(up.crossProduct(d), up, d);
+		mMesh->setOrientation(q);
+		mBorder->setOrientation(q);
+	}
+
+	void setPosition(Vector3 p)
+	{
+		mMesh->setPosition(p);
+		mBorder->setPosition(p);
+	}
+
+	void recurse();
 
 	Camera* getCamera()
 	{
 		return mCamera;
 	}
-	//void observerMoved(const Message& msg);
+
+	void setVisible(bool v)
+	{
+		mMesh->setVisible(v);
+		mBorder->setVisible(v);
+	}
 
 	String rtt1;
 	String rtt2;
@@ -56,9 +62,14 @@ protected:
 	Camera* mCamera;
 	SceneNode* mNode;
 	Mesh* mMesh;
+	Mesh* mBorder;
 
 	Portal* mSibling;
 	OgreSubsystem* mOgre;
+
+	//bool mRecursed;
+	//Vector3 oldPos;
+	//Vector3 oldOri;
 
 	Vector3 mDirection;
 	Vector3 mPosition;

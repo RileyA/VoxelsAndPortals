@@ -23,6 +23,8 @@ public:
 	virtual void update(Real delta);
 	virtual void deinit();
 
+	void updateCam(const Message& m);
+
 private:
 
 	ChunkManager* mChunkMgr;
@@ -30,6 +32,7 @@ private:
 	OISSubsystem* mInput;
 	ALSubsystem* mAudio;
 	GUISubsystem* mGUI;
+	BulletSubsystem* mPhysics;
 
 	BasicChunkGenerator* mGen;
 	FPSCamera* mCam;
@@ -52,7 +55,10 @@ private:
 	Portal* port1;
 	Portal* port2;
 
+	Quaternion savedOri;
+	Vector3 savedPos;
 
+	ScreenMesh* mUI;
 };
 
 #endif

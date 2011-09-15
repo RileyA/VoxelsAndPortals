@@ -92,7 +92,8 @@ const byte MAPPINGS[7][6] =
 	{4,4,4,4,4,4}*/
 	// Minecraft "terrain.png":
 	{1,1,1,1,1,1},// air
-	{53,53,53,53,53,53},// shrub
+	//{53,53,53,53,53,53},// shrub
+	{19,19,19,19,19,19},// sand
 	{2,2,2,2,2,2}, // dirt
 	{3,3,3,3,3,3}, // stone
 	{4,4,3,1,4,4}, // grass
@@ -113,7 +114,7 @@ enum BlockProperties
 const byte BLOCKTYPES[] = 
 {
 	BP_TRANSPARENT, //air
-	2 | BP_SOLID | BP_TRANSPARENT, //shrub
+	BP_SOLID, //shrub
 	BP_SOLID, //dirt
 	BP_SOLID, //stone
 	BP_SOLID, //grass
