@@ -29,7 +29,7 @@ void PlayState::init()
 	mPhysics = dynamic_cast<BulletSubsystem*>(mEngine->getSubsystem("BulletSubsystem"));
 
 	// start up input, grab the mouse
-	mInput->initInput(mGfx->getWindowHandle(), false);
+	mInput->initInput(mGfx->getWindowHandle(), true);
 
 	// start up bullet for collision detection
 	mPhysics->startSimulation();
@@ -39,7 +39,7 @@ void PlayState::init()
 	mGfx->setBackgroundColor(Colour(0,0,0));
 
 	// enable portal stencil hack with 5 visual recursions
-	mGfx->enablePortalHack(2);
+	mGfx->enablePortalHack(5);
 	
 	// so we can get signals during portal rendering (for setting up camera, visibility, etc)
 	mGfx->getSignal("updateCam")->addListener(createSlot("updateCam", this, &PlayState::updateCam));
@@ -49,7 +49,7 @@ void PlayState::init()
 
 	// make the portals
 	mPortals[0] = new Portal(Vector3(-6.5f,-7,-3.f), BD_BACK, BD_UP, true);
-	mPortals[1] = new Portal(Vector3(-6.5f,-7,3), BD_RIGHT, BD_UP, false);
+	mPortals[1] = new Portal(Vector3(-6.5f,-7,3), BD_LEFT, BD_UP, false);
 
 	// connect them (eventually I'd like to allow any number of portal pairs, but for now
 	// everythings very hacky and hardcoded to do two portals...
@@ -129,62 +129,93 @@ void PlayState::update(Real delta)
 	mGeneratedChunkCountText->setCaption("Generated Chunks: " +
 		StringUtils::toString(mGen->getNumGeneratedChunks()));
 
-	// delete a block
 	if(mInput->wasButtonPressed("MB_Right"))
 	{
-		BulletSubsystem* b = Engine::getPtr()->getSubsystem("BulletSubsystem")->
-			castType<BulletSubsystem>();
-		
-		RaycastReport r = b->raycast(mCam->getPosition(),mCam->getDirection(),
-			8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
-
-		if(r.hit && r.userData)
+		if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
-			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
-			ChunkCoords cc = getBlockFromRaycast(r.position, 
-				r.normal, bc, true);
-			bc = correctChunkCoords(bc, cc);
-			cc.data = 0;
-			bc->changeBlock(cc);
+			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+				8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			if(r.hit && r.userData)
+			{
+				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
+				ChunkCoords cc = getBlockFromRaycast(r.position, 
+					r.normal, bc, true);
+				bc = correctChunkCoords(bc, cc);
+				cc.data = 0;
+				bc->changeBlock(cc);
+			}
+		}
+		else
+		{
+			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			if(r.hit && r.userData)
+			{
+				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
+				ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
+				bc = correctChunkCoords(bc, cc);
+
+				BlockDirection d = getBlockDirectionFromVector(r.normal);
+				BlockDirection up = getBlockDirectionFromVector(
+					Plane(r.normal, 0).projectVector(mCam->mCamera->getAbsoluteUp()));
+
+				if(!getBlockVal(bc, cc) && !getBlockVal(bc, cc << up))
+				{
+					Vector3 adjPos = bc->getPosition() - OFFSET + Vector3(cc.x, cc.y, cc.z);
+					adjPos -= BLOCK_NORMALS[d] * 0.5f;
+					adjPos += BLOCK_NORMALS[up] * 0.5f;
+						
+					mPortals[1]->setPosition(adjPos);
+					mPortals[1]->setDirection(d, up);
+				}
+			}
 		}
 	}
 
-	// add a block
 	if(mInput->wasButtonPressed("MB_Left"))
 	{
-		RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-			5.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
-
-		if(r.hit && r.userData)
+		if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
-			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
-			ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
-			bc = correctChunkCoords(bc, cc);
-			cc.data = mBlockSelected;
-			bc->changeBlock(cc);
+			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+				5.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			if(r.hit && r.userData)
+			{
+				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
+				ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
+				bc = correctChunkCoords(bc, cc);
+				cc.data = mBlockSelected;
+				bc->changeBlock(cc);
+			}
 		}
-
-		// Early start at placing portals
-		/*BulletSubsystem* b = Engine::getPtr()->getSubsystem("BulletSubsystem")->
-			castType<BulletSubsystem>();
-		
-		RaycastReport r = b->raycast(mCam->getPosition(),mCam->getDirection(),
-			5.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
-
-		if(r.hit && r.userData)
+		else
 		{
-			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
-			ChunkCoords cc = BasicChunk::getBlockFromRaycast(r.position, r.normal, bc, false);
-			bc = correctChunkCoords(bc, cc);
+			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
 
-			Vector3 adjPos = bc->getPosition() - OFFSET + Vector3(cc.c.x, cc.c.y, cc.c.z);
-			
-			mPortals[0]->setPosition(adjPos);
-			mPortals[0]->setDirection(r.normal);
+			if(r.hit && r.userData)
+			{
+				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
+				ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
+				bc = correctChunkCoords(bc, cc);
 
-			//cc.c.data = block;
-			//bc->changeBlock(cc);
-		}*/
+				BlockDirection d = getBlockDirectionFromVector(r.normal);
+				BlockDirection up = getBlockDirectionFromVector(
+					Plane(r.normal, 0).projectVector(mCam->mCamera->getAbsoluteUp()));
+
+				if(!getBlockVal(bc, cc) && !getBlockVal(bc, cc << up))
+				{
+					Vector3 adjPos = bc->getPosition() - OFFSET + Vector3(cc.x, cc.y, cc.z);
+					adjPos -= BLOCK_NORMALS[d] * 0.5f;
+					adjPos += BLOCK_NORMALS[up] * 0.5f;
+						
+					mPortals[0]->setPosition(adjPos);
+					mPortals[0]->setDirection(d, up);
+				}
+			}
+		}
 	}
 }
 //---------------------------------------------------------------------------
@@ -225,7 +256,7 @@ void PlayState::updateCam(const Message& m)
 		if(pass > 0)
 			mPortals[1]->recurse();
 		// render UI at the end of the last render
-		if(pass == 1)
+		if(pass == 4)
 			mUI->setHidden(true);
 	}
 	else if(portal == 100)

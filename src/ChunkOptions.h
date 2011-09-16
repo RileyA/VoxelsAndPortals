@@ -81,6 +81,22 @@ enum BlockDirection
 	BD_BACK   // +z
 };
 
+static BlockDirection getBlockDirectionFromVector(Vector3 v)
+{
+	// extract dominant axis
+	Real x,y,z;
+	x = fabs(v.x);
+	y = fabs(v.y);
+	z = fabs(v.z);
+
+	if(x >= y && x >= z)
+		return v.x > 0 ? BD_RIGHT : BD_LEFT;
+	else if(y >= x && y >= z)
+		return v.y > 0 ? BD_UP : BD_DOWN;
+	else
+		return v.z > 0 ? BD_BACK : BD_FRONT;
+};
+
 const byte FILTERVERTEX[6] = {0,3,1,3,2,1};
 
 const byte MAPPINGS[7][6] = 
