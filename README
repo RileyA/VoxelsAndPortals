@@ -1,6 +1,17 @@
 Blocks and portals, what more do ya need?
 
 I did an incomplete Minecraft clone a ways back (see 'Voxels'), and I've been wanting to 
-start anew and make a better one. I've also always wanted to try implementing portals. 
+start anew and make a better one. I've also always wanted to try implementing portals.
 
-GPL v3.
+GPL v3
+-----------------------------------------------------------------------------------------
+Some random details:
+
+Portals are done in roughly the same way as Portal (via stencil masks, rather than RTTs).
+
+The Minecraft-style stuff is done similar to how Minecraft seems to work, but I've 
+multithreaded most of the demanding parts of the calculations, so it should stay 
+fairly smooth; though this adds a lot of complications with accessing chunk data.
+
+It's sort of a hacky mess, but whatever... 
+
