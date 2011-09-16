@@ -66,7 +66,7 @@ private:
 	int mNumActiveChunks;
 
 	//---------------------------------------------------------------------------
-	/** A ThreadPool job for building a Chunk's mesh */
+	/** A ThreadPool Job for building a Chunk's mesh */
 	class BuildJob : public ThreadPool::Job
 	{
 	public:
@@ -94,8 +94,7 @@ private:
 		bool full;
 	};
 	//---------------------------------------------------------------------------
-
-	/** A ThreadPool job for claulating a Chunk's lighting */
+	/** A ThreadPool Job for claulating a Chunk's lighting */
 	class LightJob : public ThreadPool::Job 
 	{
 	public:

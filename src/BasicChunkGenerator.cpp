@@ -74,7 +74,7 @@ void BasicChunkGenerator::update(Real delta)
 	for(std::map<BasicChunk*, bool>::iterator it = mBuiltChunks.begin(); 
 		it != mBuiltChunks.end(); ++it)
 	{
-		it->first->buildMesh(it->second);
+		it->first->update(it->second);
 	}
 
 	mBuiltChunks.clear();
@@ -83,8 +83,6 @@ void BasicChunkGenerator::update(Real delta)
 
 void BasicChunkGenerator::generate()
 {
-	// generate and activate chunks (also eventually deactivate some of them..)
-
 	// keep a list of newly generated chunks
 	std::list<std::pair<BasicChunk*,InterChunkCoords> > newChunks;
 
@@ -262,6 +260,7 @@ void BasicChunkGenerator::apply()
 		// make sure to clear the changes
 		bc->mChanges.clear();
 
+		// makr block and neighbors dirty
 		if(needsRebuild)
 		{
 			boost::mutex::scoped_lock lock(mDirtyListMutex);

@@ -141,7 +141,7 @@ void PlayState::update(Real delta)
 		if(r.hit && r.userData)
 		{
 			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
-			ChunkCoords cc = BasicChunk::getBlockFromRaycast(r.position, 
+			ChunkCoords cc = getBlockFromRaycast(r.position, 
 				r.normal, bc, true);
 			bc = correctChunkCoords(bc, cc);
 			cc.c.data = 0;
@@ -158,7 +158,7 @@ void PlayState::update(Real delta)
 		if(r.hit && r.userData)
 		{
 			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
-			ChunkCoords cc = BasicChunk::getBlockFromRaycast(r.position, r.normal, bc, false);
+			ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
 			bc = correctChunkCoords(bc, cc);
 			cc.c.data = mBlockSelected;
 			bc->changeBlock(cc);

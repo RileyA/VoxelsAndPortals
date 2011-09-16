@@ -4,15 +4,17 @@
 #include "ChunkUtils.h"
 
 BasicChunk::BasicChunk(BasicChunkGenerator* gen, InterChunkCoords pos)
-	:Chunk(gen, pos),mActive(0),mNewlyActive(0),mBasicGenerator(gen)
+	:Chunk(gen, pos),mActive(0),mBasicGenerator(gen)
 {
 	for(int i = 0; i < 6; ++i)
 		neighbors[i] = 0;
 }
+//---------------------------------------------------------------------------
 
 BasicChunk::~BasicChunk()
 {
 }
+//---------------------------------------------------------------------------
 
 void BasicChunk::build(bool full)
 {
@@ -68,159 +70,40 @@ void BasicChunk::build(bool full)
 			// determine lighting conditions at this point
 			byte lighting = light[i][j][k];
 
-			// determine lighting conditions in surrounding blocks
+			// determine lighting conditions in surrounding blocks,
+			// this is used for smooth lighting calculations
 			byte surroundingLights[6] = {0,0,0,0,0,0};
-			for(int p=0;p<6;++p)
+
+			for(int p=0; p < 6; ++p)
 			{
+				// only check if there isn't a block in this direction
 				if(adjacents[p])
 				{
-					surroundingLights[p] = getLightVal(this,bc<<p);
+					surroundingLights[p] = getLightAt(this,bc<<p);
 				}
 			}
 
 			// create the quads
 			for(int p=0;p<6;++p)
 			{
+				// only create a quad if there's a block adjacent in that direction
 				if(!adjacents[p])
 				{
-					makeQuad(bc,Vector3(i,j,k),p,*mMesh,MAPPINGS[getBlockVal(this,bc<<p)][5-p],
+					makeQuad(bc,Vector3(i,j,k),p,*mMesh,MAPPINGS[getBlockAt(this,bc<<p)][5-p],
 						LIGHTVALUES[lighting],adjacents,surroundingLights, full);
 				}
 			}
 		}
 	}
 }
+//---------------------------------------------------------------------------
 
-void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
-	ChunkCoords& coords, byte lightVal, bool emitter)
+void BasicChunk::clearLighting()
 {
-	int8 trans = 0;
-	if(emitter || (lightVal > 0 /*&& coords.inBounds()*/ && (trans = getCoordTransparency(this, coords) || emitter) &&
-		(emitter || setLight(coords,lightVal) )))
-	{
-
-		for(int i = BD_LEFT; i <= BD_BACK; ++i)
-		{
-			ChunkCoords old = coords;
-			coords[AXIS[i]] += AXIS_OFFSET[i];
-
-			BasicChunk* tmp = this;
-
-			if(coords[AXIS[i]] < 0)
-			{
-				tmp = neighbors[i];
-				coords[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
-			}
-			else if(coords[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
-			{
-				tmp = neighbors[i];
-				coords[AXIS[i]] = 0;
-			}
-
-			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
-			{
-				tmp->doLighting(chunks, coords, lightVal - trans, false);
-			}
-
-			//coords[AXIS[i]] -= AXIS_OFFSET[i];
-			coords = old;
-		}
-	}
+	boost::mutex::scoped_lock lock(mLightMutex);
+	memset(light, 0, CHUNK_VOLUME);
 }
-
-void BasicChunk::makeQuad(ChunkCoords& cpos,Vector3 pos,int normal,MeshData& d,short type,float diffuse,bool* adj,byte* lights, bool full)
-{
-	if(full)
-	{
-		Vector2 offset;
-		int dims = 16;
-		int tp = type-1;
-		float gridSize = 1.f/dims;
-		offset = Vector2(tp%dims*gridSize,tp/dims*gridSize);
-		pos -= OFFSET;
-		for(int i=0;i<6;++i)
-			d.vertex(pos+BLOCK_VERTICES[normal][5-i],offset+BLOCK_TEXCOORDS[normal][5-i]*gridSize);
-	}
-
-	diffuse *= LIGHT_STEPS[5-normal];
-
-	for(int i=0;i<6;++i)
-	{
-		#ifdef CHUNK_NORMALS
-		d.normals.push_back(BLOCK_NORMALS[normal].x);
-		d.normals.push_back(BLOCK_NORMALS[normal].y);
-		d.normals.push_back(BLOCK_NORMALS[normal].z);
-		#endif
-
-		float lighting = diffuse;
-		
-		#ifdef SMOOTH_LIGHTING
-
-		float ltDiagonal = 0.f;
-
-		if(adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]] ||
-			adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]])
-		{
-			ChunkCoords cc;
-			cc = cpos<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][0];
-			cc = cc<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][1];
-			ltDiagonal = LIGHTVALUES[getLightVal(this,cc)];	
-		}
-
-		lighting += LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]]]
-			+ LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]]] + ltDiagonal;
-
-		lighting/=4.f;
-
-		#endif
-
-		d.diffuse.push_back(lighting);
-		d.diffuse.push_back(lighting / 1.2f);
-		d.diffuse.push_back(lighting / 1.4f);
-		d.diffuse.push_back(1.f);
-	}
-}
-
-/*void BasicChunk::makeQuad(ChunkCoords& cpos,Vector3 pos,int normal,MeshData& d,short type,float diffuse,bool* adj,byte* lights, bool full)
-{
-	diffuse *= LIGHT_STEPS[5-normal];
-
-	for(int i=0;i<6;++i)
-	{
-		//#ifdef CHUNK_NORMALS
-		//d.normals.push_back(BLOCK_NORMALS[normal].x);
-		//d.normals.push_back(BLOCK_NORMALS[normal].y);
-		//d.normals.push_back(BLOCK_NORMALS[normal].z);
-		//#endif
-
-		float lighting = diffuse;
-		
-		#ifdef SMOOTH_LIGHTING
-
-		float ltDiagonal = 0.f;
-
-		if(adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]] ||
-			adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]])
-		{
-			ChunkCoords cc;
-			cc = cpos<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][0];
-			cc = cc<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][1];
-			ltDiagonal = LIGHTVALUES[getLightVal(this,cc)];	
-		}
-
-		lighting += LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]]]
-			+ LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]]] + ltDiagonal;
-
-		lighting/=4.f;
-
-		#endif
-
-		d.diffuse.push_back(lighting);
-		d.diffuse.push_back(lighting / 1.2f);
-		d.diffuse.push_back(lighting / 1.4f);
-		d.diffuse.push_back(1.f);
-	}
-}*/
+//---------------------------------------------------------------------------
 
 void BasicChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bool secondaryLight)
 {
@@ -261,6 +144,89 @@ void BasicChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bo
 		doLighting(chunks, (*it), (*it).c.data, true);
 	}
 }
+//---------------------------------------------------------------------------
+
+bool BasicChunk::activate()
+{
+	boost::mutex::scoped_lock lock(mBlockMutex);
+	bool wasActive = true;
+	if(!mActive)
+	{
+		wasActive = false;
+	}
+	mActive = true;
+	return !wasActive;
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::deactivate()
+{
+	boost::mutex::scoped_lock lock(mBlockMutex);
+	// TODO: kill gfx mesh
+	mActive = false;
+}
+//---------------------------------------------------------------------------
+
+bool BasicChunk::isActive()
+{
+	boost::mutex::scoped_lock lock(mBlockMutex);
+	return mActive;
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::makeQuad(ChunkCoords& cpos,Vector3 pos,int normal,MeshData& d,short type,float diffuse,bool* adj,byte* lights, bool full)
+{
+	if(full)
+	{
+		Vector2 offset;
+		int dims = 16;
+		int tp = type-1;
+		float gridSize = 1.f/dims;
+		offset = Vector2(tp%dims*gridSize,tp/dims*gridSize);
+		pos -= OFFSET;
+		for(int i=0;i<6;++i)
+			d.vertex(pos+BLOCK_VERTICES[normal][5-i],offset+BLOCK_TEXCOORDS[normal][5-i]*gridSize);
+	}
+
+	diffuse *= LIGHT_STEPS[5-normal];
+
+	for(int i=0;i<6;++i)
+	{
+		#ifdef CHUNK_NORMALS
+		d.normals.push_back(BLOCK_NORMALS[normal].x);
+		d.normals.push_back(BLOCK_NORMALS[normal].y);
+		d.normals.push_back(BLOCK_NORMALS[normal].z);
+		#endif
+
+		float lighting = diffuse;
+		
+		#ifdef SMOOTH_LIGHTING
+
+		float ltDiagonal = 0.f;
+
+		if(adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]] ||
+			adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]])
+		{
+			ChunkCoords cc;
+			cc = cpos<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][0];
+			cc = cc<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][1];
+			ltDiagonal = LIGHTVALUES[getLightAt(this,cc)];	
+		}
+
+		lighting += LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]]]
+			+ LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]]] + ltDiagonal;
+
+		lighting/=4.f;
+
+		#endif
+
+		d.diffuse.push_back(lighting);
+		d.diffuse.push_back(lighting / 1.2f);
+		d.diffuse.push_back(lighting / 1.4f);
+		d.diffuse.push_back(1.f);
+	}
+}
+//---------------------------------------------------------------------------
 
 void BasicChunk::changeBlock(const ChunkCoords& chng)
 {
@@ -272,3 +238,41 @@ void BasicChunk::changeBlock(const ChunkCoords& chng)
 	}
 	mBasicGenerator->notifyChunkChange(this);
 }
+//---------------------------------------------------------------------------
+
+void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
+	ChunkCoords& coords, byte lightVal, bool emitter)
+{
+	int8 trans = 0;
+	if(emitter || (lightVal > 0 && (trans = getTransparency(
+		blocks[coords.c.x][coords.c.y][coords.c.z])) &&
+		(setLight(coords,lightVal))))
+	{
+		for(int i = BD_LEFT; i <= BD_BACK; ++i)
+		{
+			ChunkCoords old = coords;
+			coords[AXIS[i]] += AXIS_OFFSET[i];
+
+			BasicChunk* tmp = this;
+
+			if(coords[AXIS[i]] < 0)
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+			}
+			else if(coords[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = 0;
+			}
+
+			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
+			{
+				tmp->doLighting(chunks, coords, lightVal - trans, false);
+			}
+
+			coords = old;
+		}
+	}
+}
+//---------------------------------------------------------------------------

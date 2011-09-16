@@ -6,8 +6,6 @@ ChunkGenerator::ChunkGenerator()
 
 ChunkGenerator::~ChunkGenerator() 
 {
-	//stopThread();
-	//mThread.join();
 }
 //---------------------------------------------------------------------------
 

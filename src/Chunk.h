@@ -44,6 +44,11 @@ public:
 		return mPosition;
 	}
 
+	/** Updates graphics and physics meshes
+	 *		@param full Whether or not to do a full update
+	 *			or just lighting (diffuse vertex colors) */
+	void update(bool full);
+
 protected:
 
 	// This chunk's position
@@ -64,6 +69,9 @@ protected:
 	// Subsystems for convenience
 	OgreSubsystem* mGfx;
 	BulletSubsystem* mPhysics;
+
+	// Primary mutex
+	boost::mutex mBlockMutex;
 
 };
 
