@@ -20,19 +20,17 @@ void BasicChunk::build(bool full)
 {
 	boost::mutex::scoped_lock lock(mBlockMutex);
 
-	// clear the necessary parts out
+	// we're always doing at least lighting
+	mMesh->diffuse.clear();
+
+	// clear the rest for a full build
 	if(full)
 	{
 		mMesh->vertices.clear();
 		mMesh->texcoords.clear();
 		mMesh->normals.clear();
-		mMesh->diffuse.clear();
 		mMesh->indices.clear();
 		mMesh->addTexcoordSet();
-	}
-	else
-	{
-		mMesh->diffuse.clear();
 	}
 
 	// loop through each block
@@ -42,6 +40,7 @@ void BasicChunk::build(bool full)
 	{
 		ChunkCoords bc(i,j,k);
 		byte type = blocks[i][j][k];
+		Vector3 realPos = Vector3(i,j,k) - OFFSET;
 
 		// if this is a hollow block
 		if(blockTransparent(type))
@@ -68,29 +67,29 @@ void BasicChunk::build(bool full)
 				continue;
 
 			// determine lighting conditions at this point
-			byte lighting = light[i][j][k];
+			Real lighting = LIGHTVALUES[light[i][j][k]];
 
 			// determine lighting conditions in surrounding blocks,
 			// this is used for smooth lighting calculations
-			byte surroundingLights[6] = {0,0,0,0,0,0};
+			float surroundingLights[6] = {0.f,0.f,0.f,0.f,0.f,0.f};
 
-			for(int p=0; p < 6; ++p)
+			for(int p = 0; p < 6; ++p)
 			{
 				// only check if there isn't a block in this direction
 				if(adjacents[p])
 				{
-					surroundingLights[p] = getLightAt(this,bc<<p);
+					surroundingLights[p] = LIGHTVALUES[getLightAt(this, bc<<p)];
 				}
 			}
 
 			// create the quads
-			for(int p=0;p<6;++p)
+			for(int p = 0; p < 6; ++p)
 			{
 				// only create a quad if there's a block adjacent in that direction
 				if(!adjacents[p])
 				{
-					makeQuad(bc,Vector3(i,j,k),p,*mMesh,MAPPINGS[getBlockAt(this,bc<<p)][5-p],
-						LIGHTVALUES[lighting],adjacents,surroundingLights, full);
+					makeQuad(bc, realPos, p, MAPPINGS[getBlockAt(this, bc << p)][5 - p],
+						lighting, adjacents, surroundingLights, !full);
 				}
 			}
 		}
@@ -141,8 +140,20 @@ void BasicChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bo
 
 	for(std::list<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
 	{
-		doLighting(chunks, (*it), (*it).c.data, true);
+		doLighting(chunks, (*it), (*it).data, true);
 	}
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::changeBlock(const ChunkCoords& chng)
+{
+	// note that we carefully scope this, otherwise deadlocks will
+	// occur between this and the 'apply' step of the generator thread
+	{
+		boost::mutex::scoped_lock lock(mBlockMutex);
+		mChanges.push_back(chng);
+	}
+	mBasicGenerator->notifyChunkChange(this);
 }
 //---------------------------------------------------------------------------
 
@@ -174,69 +185,80 @@ bool BasicChunk::isActive()
 }
 //---------------------------------------------------------------------------
 
-void BasicChunk::makeQuad(ChunkCoords& cpos,Vector3 pos,int normal,MeshData& d,short type,float diffuse,bool* adj,byte* lights, bool full)
+void BasicChunk::makeQuad(
+	const ChunkCoords& chunkPos,
+	const Vector3& realPos,
+	const unsigned int& direction,
+	const byte& blockType,
+	const Real& lighting,
+	const bool* adjacentBlocks,
+	const Real* adjacentLighting,
+	bool lightOnly)
 {
-	if(full)
+	if(!lightOnly)
 	{
-		Vector2 offset;
-		int dims = 16;
-		int tp = type-1;
-		float gridSize = 1.f/dims;
-		offset = Vector2(tp%dims*gridSize,tp/dims*gridSize);
-		pos -= OFFSET;
+		// Texture atlas grid size (hardcoded for 16x16 atm, for Minecraft textures)
+		int atlasDimensions = 16;
+		float gridSize = 1.f / atlasDimensions;
+	
+		// texcoord offset for this block type
+		Vector2 offset = Vector2(
+			(blockType - 1) % atlasDimensions * gridSize, 
+			(blockType - 1) / atlasDimensions * gridSize);
+
+		// loop through for each vert
 		for(int i=0;i<6;++i)
-			d.vertex(pos+BLOCK_VERTICES[normal][5-i],offset+BLOCK_TEXCOORDS[normal][5-i]*gridSize);
+		{
+			// add the position and texcoords to teh meshdata
+			mMesh->vertex(realPos + BLOCK_VERTICES[direction][5-i],
+				offset+BLOCK_TEXCOORDS[direction][5-i]*gridSize);
+		}
 	}
 
-	diffuse *= LIGHT_STEPS[5-normal];
+	// base light level, with some shading based on direction of the face
+	Real baseLight = lighting * LIGHT_STEPS[5-direction];
 
-	for(int i=0;i<6;++i)
+	// TODO only calc for 4 verts, reuse vals for overlapped verts
+	for(int i = 0; i < 6; ++i)
 	{
+		// light at this vertex
+		float light = baseLight;
+
+		// add normals, if set (sorta pointless unless we're doing shader stuff
+		// that needs 'em...)
 		#ifdef CHUNK_NORMALS
-		d.normals.push_back(BLOCK_NORMALS[normal].x);
-		d.normals.push_back(BLOCK_NORMALS[normal].y);
-		d.normals.push_back(BLOCK_NORMALS[normal].z);
+		d.normals.push_back(BLOCK_NORMALS[direction].x);
+		d.normals.push_back(BLOCK_NORMALS[direction].y);
+		d.normals.push_back(BLOCK_NORMALS[direction].z);
 		#endif
 
-		float lighting = diffuse;
-		
+		// this might be better setup as a toggle, rather than determining at compile time...
 		#ifdef SMOOTH_LIGHTING
 
-		float ltDiagonal = 0.f;
-
-		if(adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]] ||
-			adj[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]])
+		// check diagonal to this vert and add it if need be
+		if(adjacentBlocks[LIGHTING_COORDS[direction][FILTERVERTEX[i]][0]] ||
+			adjacentBlocks[LIGHTING_COORDS[direction][FILTERVERTEX[i]][1]])
 		{
-			ChunkCoords cc;
-			cc = cpos<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][0];
-			cc = cc<<LIGHTING_COORDS[normal][FILTERVERTEX[i]][1];
-			ltDiagonal = LIGHTVALUES[getLightAt(this,cc)];	
+			ChunkCoords cc = chunkPos<<LIGHTING_COORDS[direction][FILTERVERTEX[i]][0];
+			cc = cc<<LIGHTING_COORDS[direction][FILTERVERTEX[i]][1];
+			light += LIGHTVALUES[getLightAt(this,cc)];	
 		}
 
-		lighting += LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][0]]]
-			+ LIGHTVALUES[lights[LIGHTING_COORDS[normal][FILTERVERTEX[i]][1]]] + ltDiagonal;
+		// add two adjacent blocks
+		light += adjacentLighting[LIGHTING_COORDS[direction][FILTERVERTEX[i]][0]]
+			+ adjacentLighting[LIGHTING_COORDS[direction][FILTERVERTEX[i]][1]];
 
-		lighting/=4.f;
-
+		// average
+		light /= 4.f;
+ 
 		#endif
 
-		d.diffuse.push_back(lighting);
-		d.diffuse.push_back(lighting / 1.2f);
-		d.diffuse.push_back(lighting / 1.4f);
-		d.diffuse.push_back(1.f);
+		// apply to each channel (with some slight offsets to give the light a bit of color)
+		mMesh->diffuse.push_back(light);
+		mMesh->diffuse.push_back(light / 1.2f);
+		mMesh->diffuse.push_back(light / 1.4f);
+		mMesh->diffuse.push_back(1.f);// alpha's just always 1
 	}
-}
-//---------------------------------------------------------------------------
-
-void BasicChunk::changeBlock(const ChunkCoords& chng)
-{
-	// note that we carefully scope this, otherwise deadlocks will
-	// occur between this and the 'apply' step of the generator thread
-	{
-		boost::mutex::scoped_lock lock(mBlockMutex);
-		mChanges.push_back(chng);
-	}
-	mBasicGenerator->notifyChunkChange(this);
 }
 //---------------------------------------------------------------------------
 
@@ -244,17 +266,26 @@ void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
 	ChunkCoords& coords, byte lightVal, bool emitter)
 {
 	int8 trans = 0;
+
+	// only proceed if this is an emitter, OR a transparent block with
+	// a lesser light value than lightVal
 	if(emitter || (lightVal > 0 && (trans = getTransparency(
-		blocks[coords.c.x][coords.c.y][coords.c.z])) &&
+		blocks[coords.x][coords.y][coords.z])) &&
 		(setLight(coords,lightVal))))
 	{
+		// loop through each direction
 		for(int i = BD_LEFT; i <= BD_BACK; ++i)
 		{
+			// hold onto the original value, so we can backtrack
 			ChunkCoords old = coords;
+
+			// nudge in the proper direction
 			coords[AXIS[i]] += AXIS_OFFSET[i];
 
+			// since it may cross into other chunks
 			BasicChunk* tmp = this;
 
+			// check for out of bounds
 			if(coords[AXIS[i]] < 0)
 			{
 				tmp = neighbors[i];
@@ -266,11 +297,13 @@ void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
 				coords[AXIS[i]] = 0;
 			}
 
+			// continue (if on an edge, then only do so if it exists in the map)
 			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
 			{
 				tmp->doLighting(chunks, coords, lightVal - trans, false);
 			}
 
+			// reset coords
 			coords = old;
 		}
 	}

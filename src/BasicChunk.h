@@ -47,13 +47,13 @@ public:
 	{
 		boost::mutex::scoped_lock lock(mLightMutex);
 
-		if(light[coords.c.x][coords.c.y][coords.c.z] >= val)
+		if(light[coords.x][coords.y][coords.z] >= val)
 		{
 			return false;
 		}
 		else
 		{
-			light[coords.c.x][coords.c.y][coords.c.z] = val;
+			light[coords.x][coords.y][coords.z] = val;
 			return true;
 		}
 	}
@@ -73,7 +73,7 @@ public:
 	inline byte getLightAt(const ChunkCoords& c)
 	{
 		boost::mutex::scoped_lock lock(mLightMutex);
-		return light[c.c.x][c.c.y][c.c.z];
+		return light[c.x][c.y][c.z];
 	}
 
 	/** Gets the lighting at a point
@@ -91,7 +91,7 @@ public:
 	inline byte getBlockAt(const ChunkCoords& c)
 	{
 		boost::mutex::scoped_lock lock(mBlockMutex);
-		return blocks[c.c.x][c.c.y][c.c.z];
+		return blocks[c.x][c.y][c.z];
 	}
 
 	/** Sets this chunk as 'active' (actively being rendered/simulated) */
@@ -111,13 +111,32 @@ public:
 
 private:
 
-	/** Calculates lighting by recursively tracing through the chunks */
+	/** Calculates lighting by recursively tracing through the chunks 
+	 *	@param chunks The set of chunks being updated
+	 *	@param coords The position in the current Chunk
+	 *	@param lightVal The lighting to pass along
+	 *	@param emitter If this is an emitting block */
 	void doLighting(const std::map<BasicChunk*, bool>& chunks, 
 		ChunkCoords& coords, byte lightVal, bool emitter);
 
-	/** Helper that creates a quad */
-	void makeQuad(ChunkCoords& cpos,Vector3 pos,int normal,MeshData& d,
-		short type,float diffuse,bool* adj,byte* lights, bool full);
+	/** Helper that creates a quad 
+	 *	@param chunkPos Which block we're dealing with 
+	 *	@param realPos Object space position
+	 *	@param direction Which face we're making 
+	 *	@param blockType The texture atlas index for this blocktype
+	 *	@param lighting Light value at this block
+	 *	@param adjacentBlocks Whether or not adjacent blocks are occupied
+	 *	@param adjacentLighting Lighting in adjacent blocks (used for smooth lighting)
+	 *	@param lightOnly Whether to perform lighting only */
+	void makeQuad(
+		const ChunkCoords& chunkPos,
+		const Vector3& realPos,
+		const unsigned int& direction,
+		const byte& blockType,
+		const Real& lighting,
+		const bool* adjacentBlocks,
+		const Real* adjacentLighting,
+		bool lightOnly);
 
 	//---------------------------------------------------------------------------
 
@@ -145,14 +164,14 @@ private:
 	inline static byte getBlockAt(BasicChunk* c, ChunkCoords coords)
 	{
 		c = correctCoords(c,coords);
-		return c ? c->blocks[coords.c.x][coords.c.y][coords.c.z] : 0;
+		return c ? c->blocks[coords.x][coords.y][coords.z] : 0;
 	}	
 	//---------------------------------------------------------------------------
 
 	inline static byte getLightAt(BasicChunk* c, ChunkCoords coords)
 	{
 		c = correctCoords(c,coords);
-		return c ? c->light[coords.c.x][coords.c.y][coords.c.z] : 0;
+		return c ? c->light[coords.x][coords.y][coords.z] : 0;
 	}	
 	//---------------------------------------------------------------------------
 

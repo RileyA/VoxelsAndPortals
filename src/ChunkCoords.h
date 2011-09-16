@@ -4,62 +4,59 @@
 #include "Oryx.h"
 #include "ChunkOptions.h"
 
-// This really doesn't need to be a union anymore.. ahhh well I'll refactor later
-union ChunkCoords
+struct ChunkCoords
 {
-	struct 
-	{
-		/** Coords (limited to 8 bits, use for relative coords) */
-		signed char x, y, z;
-		/** It'll probably be padded anyways, may as well get an extra byte of user data */
-		unsigned char data; 
-	} c;
+	/** Coords (limited to 8 bits, use for relative coords) */
+	signed char x, y, z;
+
+	/** It'll probably be padded anyways, may as well get an extra byte of user data */
+	unsigned char data; 
 
 	ChunkCoords()
 	{
-		c.x = 0;
-		c.y = 0;
-		c.z = 0;
-		c.data = 0;
+		x = 0;
+		y = 0;
+		z = 0;
+		data = 0;
 	}
 	//---------------------------------------------------------------------------
 
-	ChunkCoords(signed char x, signed char y, signed char z, signed char d = 0)
+	ChunkCoords(signed char _x, signed char _y, signed char _z, signed char d = 0)
 	{
-		c.x = x;
-		c.y = y;
-		c.z = z;
-		c.data = d;
+		x = _x;
+		y = _y;
+		z = _z;
+		data = d;
 	}
 	//---------------------------------------------------------------------------
 
 	bool inBounds()
 	{
-		return c.x<CHUNK_SIZE_X && c.x>=0 && c.y<CHUNK_SIZE_Y && c.y>=0 && c.z<CHUNK_SIZE_Z && c.z>=0;
+		return x<CHUNK_SIZE_X && x>=0 && y<CHUNK_SIZE_Y && y>=0 && z<CHUNK_SIZE_Z && z>=0;
 	}
 	//---------------------------------------------------------------------------
 
 	bool onEdge() const
 	{
-		return c.x==CHUNK_SIZE_X-1||c.x==0||c.y==CHUNK_SIZE_Y-1||c.y==0||c.z==CHUNK_SIZE_Z-1||c.z==0;
+		return x==CHUNK_SIZE_X-1||x==0||y==CHUNK_SIZE_Y-1||y==0||z==CHUNK_SIZE_Z-1||z==0;
 	}
 	//---------------------------------------------------------------------------
 
 	signed char& operator [] ( const size_t i )
 	{
-		return *(&c.x+i);
+		return *(&x+i);
 	}
 	//---------------------------------------------------------------------------
 
 	const signed char& operator [] ( const size_t i ) const
 	{
-		return *(&c.x+i);
+		return *(&x+i);
 	}
 	//---------------------------------------------------------------------------
 
 	ChunkCoords operator + (const ChunkCoords& coord) const
 	{
-		return ChunkCoords(c.x+coord.c.x,c.y+coord.c.y,c.z+coord.c.z);
+		return ChunkCoords(x+coord.x,y+coord.y,z+coord.z);
 	}
 	//---------------------------------------------------------------------------
 	
@@ -92,7 +89,7 @@ union ChunkCoords
 	// So this can be used as a std::map key
 	bool operator < (const ChunkCoords& coord) const
 	{
-		return std::lexicographical_compare(&c.x,&c.z+1,&coord.c.x,&coord.c.z+1);
+		return std::lexicographical_compare(&x,&z+1,&coord.x,&coord.z+1);
 	}
 	//---------------------------------------------------------------------------
 };

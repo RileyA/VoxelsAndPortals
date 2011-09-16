@@ -16,6 +16,13 @@ BasicChunkGenerator::~BasicChunkGenerator()
 	mThread.join();
 
 	// delete all the chunks...
+	for(std::map<InterChunkCoords, BasicChunk*>::iterator i = mChunks.begin();
+		i != mChunks.end(); ++i)
+	{
+		delete i->second;
+	}
+
+	mChunks.clear();
 }
 //---------------------------------------------------------------------------
 
@@ -228,9 +235,9 @@ void BasicChunkGenerator::apply()
 		// TODO: account for updates that cancel each other out
 		for(std::list<ChunkCoords>::iterator i = bc->mChanges.begin(); i != bc->mChanges.end(); ++i)
 		{
-			if(bc->blocks[(*i).c.x][(*i).c.y][(*i).c.z] != (*i).c.data)
+			if(bc->blocks[(*i).x][(*i).y][(*i).z] != (*i).data)
 			{
-				bc->blocks[(*i).c.x][(*i).c.y][(*i).c.z] = (*i).c.data;
+				bc->blocks[(*i).x][(*i).y][(*i).z] = (*i).data;
 				needsRebuild = true;
 
 				// TODO test out lighting stuff (I think it'll entail checking surrounding blocks,
@@ -241,17 +248,17 @@ void BasicChunkGenerator::apply()
 				// TODO: optimize out any cases where this may not be needed...
 				if(i->onEdge())
 				{
-					if(i->c.x == 0)
+					if(i->x == 0)
 						changedNeighbors[0] = true;
-					else if(i->c.x == CHUNK_SIZE_Y-1)
+					else if(i->x == CHUNK_SIZE_Y-1)
 						changedNeighbors[1] = true;
-					if(i->c.y == 0)
+					if(i->y == 0)
 						changedNeighbors[2] = true;
-					else if(i->c.y == CHUNK_SIZE_Y-1)
+					else if(i->y == CHUNK_SIZE_Y-1)
 						changedNeighbors[3] = true;
-					if(i->c.z == 0)
+					if(i->z == 0)
 						changedNeighbors[4] = true;
-					else if(i->c.z == CHUNK_SIZE_Z-1)
+					else if(i->z == CHUNK_SIZE_Z-1)
 						changedNeighbors[5] = true;
 				}
 			}

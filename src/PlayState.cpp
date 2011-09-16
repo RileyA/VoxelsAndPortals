@@ -144,7 +144,7 @@ void PlayState::update(Real delta)
 			ChunkCoords cc = getBlockFromRaycast(r.position, 
 				r.normal, bc, true);
 			bc = correctChunkCoords(bc, cc);
-			cc.c.data = 0;
+			cc.data = 0;
 			bc->changeBlock(cc);
 		}
 	}
@@ -160,7 +160,7 @@ void PlayState::update(Real delta)
 			BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
 			ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
 			bc = correctChunkCoords(bc, cc);
-			cc.c.data = mBlockSelected;
+			cc.data = mBlockSelected;
 			bc->changeBlock(cc);
 		}
 
