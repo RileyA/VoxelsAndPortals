@@ -17,17 +17,19 @@ namespace Oryx
 		mOIS = Engine::getPtr()->getSubsystem("OISSubsystem")->castType<OISSubsystem>();
 
 		mCamera = mOgre->createCamera();
-		mCamera->setFarClip(200.f);
-		mCamera->setNearClip(0.1f);
+		mCamera->setFarClip(120.f);
+		mCamera->setNearClip(0.001f);
 		mOgre->setActiveCamera(mCamera);
 
 		mRollNode = mOgre->createSceneNode();
 		mYawNode = mOgre->createSceneNode();
 		mPitchNode = mOgre->createSceneNode();
 		mPosNode = mOgre->createSceneNode();
+		mOriNode = mOgre->createSceneNode();
 
 		mOgre->getRootSceneNode()->addChild(mPosNode);
-		mPosNode->addChild(mYawNode);
+		mPosNode->addChild(mOriNode);
+		mOriNode->addChild(mYawNode);
 		mYawNode->addChild(mPitchNode);
 		mPitchNode->addChild(mRollNode);
 		mRollNode->addChild(mCamera);
@@ -37,27 +39,38 @@ namespace Oryx
 
 	void FPSCamera::update(Real delta)
 	{
-		//Vector3 last = mPosNode->getPosition();
-		mPosNode->setPosition(mPosNode->getPosition()
-			+mCamera->getAbsoluteDirection()*5*delta*(mOIS->isKeyDown("KC_W")-mOIS->isKeyDown("KC_S"))
-			+mCamera->getAbsoluteRight()*5*delta*(mOIS->isKeyDown("KC_D")-mOIS->isKeyDown("KC_A")));
-		//last -= mPosNode->getPosition();
-		//std::cout<<last.x<<" "<<last.y<<" "<<last.z<<" "<<delta<<"\n";
+		//mPosNode->setPosition(mPosNode->getPosition()
+		//	+mCamera->getAbsoluteDirection()*20*delta*(mOIS->isKeyDown("KC_W")-mOIS->isKeyDown("KC_S"))
+		//	+mCamera->getAbsoluteRight()*20*delta*(mOIS->isKeyDown("KC_D")-mOIS->isKeyDown("KC_A")));
 	}
 
 	void FPSCamera::look(const Message& msg)
 	{
 		if(const MessageAny<Vector2>* ms = message_cast<Vector2>(msg))
 		{
-			mYawNode->yaw(static_cast<Real>(ms->data.x)*-0.5f);
+			Real y = (static_cast<Real>(ms->data.x)*-0.25f);
+			if(y > 0.f)
+				y = std::min(y, 5.f);
+			else
+				y = std::max(y, -5.f);
 
-			Real tryPitch = ms->data.y*-0.5f;
-			Real actualPitch = tryPitch;
+			mYawNode->yaw(y);
 
-			if(mPitch + tryPitch > 80.f)
-				actualPitch = 80.f - mPitch;
-			else if(mPitch < -80.f)
-				actualPitch = -80.f - mPitch;
+			Real tryPitch = ms->data.y*-0.25f;
+			Real actualPitch = (tryPitch);
+
+			if(actualPitch > 0.f)
+				actualPitch = std::min(actualPitch, 5.f);
+			else
+				actualPitch = std::max(actualPitch, -5.f);
+
+			tryPitch = actualPitch;
+
+			if(mPitch + tryPitch > 90.f)
+				actualPitch = 90.f - mPitch;
+			else if(mPitch + tryPitch < -90.f)
+				actualPitch = -90.f - mPitch;
+
 			mPitch += actualPitch;
 			mPitchNode->pitch(actualPitch);
 		}

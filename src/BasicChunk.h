@@ -29,7 +29,7 @@ public:
 	 *		and out of any of these during this update) 
 	 *	@param secondaryLight Whether to gather secondary lighting from surrounding chunks
 	 *		(that aren't included in 'chunks') */
-	void calculateLighting(const std::map<BasicChunk*, bool>& chunks, bool secondaryLight);
+	virtual void calculateLighting(const std::map<BasicChunk*, bool>& chunks, bool secondaryLight);
 
 	/** Change the value of a block
 	 *	@param chng the change to make (use the ChunkCoords 'data'
@@ -45,7 +45,7 @@ public:
 	 *	@return If it replaced the light value*/
 	inline bool setLight(ChunkCoords& coords, byte val)
 	{
-		boost::mutex::scoped_lock lock(mLightMutex);
+		//boost::mutex::scoped_lock lock(mLightMutex);
 
 		if(light[coords.x][coords.y][coords.z] >= val)
 		{
@@ -103,13 +103,21 @@ public:
 	/** Gets whether or not this is active */
 	bool isActive();
 
+	/** Clears extra light emiting blocks */
+	void clearLights();
+
+	/** Adds a light emitting block */
+	void addLight(ChunkCoords c, byte strength);
+
 	/** So the chunk generator can get at this thing's data more easily */
 	friend class BasicChunkGenerator;
+	friend class TerrainChunkGenerator;
+	friend class TerrainChunk;
 
-	// TODO: protected this...
+	// TODO: protect this...
 	BasicChunk* neighbors[6];
 
-private:
+protected:
 
 	/** Calculates lighting by recursively tracing through the chunks 
 	 *	@param chunks The set of chunks being updated
@@ -188,11 +196,11 @@ private:
 	std::list<ChunkCoords> mChanges;
 
 	// light emitting blocks
+	boost::mutex mLightListMutex;
 	std::list<ChunkCoords> lights;
 	// TODO: something for portals and associated light changes...
 	
-	// whether or not this chunk is active
-	bool mActive;
+	bool mHasBeenActive;
 
 	// the generator that created this
 	BasicChunkGenerator* mBasicGenerator;

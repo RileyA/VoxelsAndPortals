@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "PlayState.h"
 #include "BasicChunkGenerator.h"
+#include "TerrainChunkGenerator.h"
 #include "BasicChunk.h"
 #include "ChunkUtils.h"
 #include "FPSCamera.h"
@@ -36,7 +37,10 @@ void PlayState::init()
 
 	// a dark background color helps hide momentary gaps, that may occur when blocks are
 	// changed on edges, and one chunk updates before the other
-	mGfx->setBackgroundColor(Colour(0,0,0));
+	Colour col = Colour(255/255.f,200/255.f,158/255.f);
+	Colour col2 = Colour(211/255.f,234/255.f,243/255.f);
+	mGfx->setBackgroundColor(col2);
+	mGfx->setLinearFog(30.f,60.f,col);
 
 	// enable portal stencil hack with 5 visual recursions
 	mGfx->enablePortalHack(5);
@@ -51,6 +55,18 @@ void PlayState::init()
 	mPortals[0] = new Portal(Vector3(-6.5f,-7,-3.f), BD_BACK, BD_UP, true);
 	mPortals[1] = new Portal(Vector3(-6.5f,-7,3), BD_LEFT, BD_UP, false);
 
+	// quick and ugly hack for light through portals
+	mPortals[0]->chunks[0] = 0;
+	mPortals[0]->chunks[1] = 0;
+	mPortals[1]->chunks[0] = 0;
+	mPortals[1]->chunks[1] = 0;
+	mPortals[0]->lightVals[0] = 0;
+	mPortals[0]->lightVals[1] = 0;
+	mPortals[1]->lightVals[0] = 0;
+	mPortals[1]->lightVals[1] = 0;
+	mPortals[0]->placed = 0;
+	mPortals[1]->placed = 0;
+
 	// connect them (eventually I'd like to allow any number of portal pairs, but for now
 	// everythings very hacky and hardcoded to do two portals...
 	mPortals[0]->setSibling(mPortals[1]);
@@ -58,7 +74,7 @@ void PlayState::init()
 
 	// Set up chunk rendering stuffs
 	mChunkMgr = new ChunkManager();
-	mGen = new BasicChunkGenerator();
+	mGen = new TerrainChunkGenerator();
 	mGen->setPlayerPos(Vector3(0,0,0));
 	mChunkMgr->init(Vector3(0,0,0), mGen);
 
@@ -98,17 +114,68 @@ void PlayState::init()
 	c->setPosition(Vector2(0.8f, 0.94f));
 	mSelectionText = c;
 
-	mBlockSelected = 1;
+	mBlockSelected = 2;
 
 	// hook it up with the rendering system
 	mUI = mGfx->createScreenMesh("UITEST");
 	b->getSignal("update")->addListener(mUI->getSlot("update"));
 	mUI->setHidden(false);
+
+	//mCam->slerpTime = -10.f;
 }
 //---------------------------------------------------------------------------
 
 void PlayState::update(Real delta)
 {
+	// fps cam update
+	Vector3 moveVect = mCam->mCamera->getAbsoluteDirection()*7*delta*
+		(mInput->isKeyDown("KC_W")-mInput->isKeyDown("KC_S"))
+		+mCam->mCamera->getAbsoluteRight()*7*delta*
+		(mInput->isKeyDown("KC_D")-mInput->isKeyDown("KC_A"));
+
+	Real len = moveVect.normalize();
+
+	// hacky raycast for portals
+	RaycastReport r = mPhysics->raycast(mCam->getPosition(),moveVect,
+		len,0,COLLISION_GROUP_2);//COLLISION_GROUP_2, COLLISION_GROUP_2);
+
+	if(!r.hit)
+	{
+		mCam->mPosNode->setPosition(mCam->mPosNode->getPosition()
+			+ moveVect * len);
+	}
+	else
+	{
+		// must be a portal
+		Portal* p = static_cast<Portal*>(r.userData);
+
+		// hacky and not so smooth portal transition
+		if(r.normal.angleBetween(p->mDirection) < 30.f)
+		{
+			Real distTravelled = r.position.distance(mCam->getPosition());
+			
+			mCam->mPosNode->setPosition(p->mNode->localToWorldPosition(
+				p->mMesh->worldToLocalPosition(mCam->getPosition())));
+			mCam->mOriNode->setOrientation(p->mNode->localToWorldOrientation(
+				p->mMesh->worldToLocalOrientation(mCam->mOriNode->getOrientation())));
+			
+			len -= 2*distTravelled;
+
+			Vector3 newDir = mCam->getDirection();
+			mCam->mPosNode->setPosition(mCam->mPosNode->getPosition()
+				+ newDir * len);
+
+			//mCam->up1 = p->upv;
+			//mCam->up2 = p->mSibling->upv;
+			//mCam->slerpTime = 1.f;
+		}
+		else
+		{
+			mCam->mPosNode->setPosition(mCam->mPosNode->getPosition()
+				+ moveVect * len);
+		}
+	}
+
 	// update player position with the chunk generator
 	mGen->setPlayerPos(mCam->getPosition());
 	
@@ -118,7 +185,7 @@ void PlayState::update(Real delta)
 
 	// screenshots
 	if(mInput->wasKeyPressed("KC_P"))
-		mGfx->takeScreenshot();
+		mGfx->takeScreenshot(TimeManager::getPtr()->getTimestamp());
 
 	// update debug overlay
 	mFpsText->setCaption("FPS: "+ StringUtils::toString(1.f/delta));
@@ -131,7 +198,29 @@ void PlayState::update(Real delta)
 
 	if(mInput->wasButtonPressed("MB_Right"))
 	{
-		if(!mInput->isKeyDown("KC_LSHIFT"))
+		if(mInput->isKeyDown("KC_L"))
+		{
+			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			if(r.hit && r.userData)
+			{
+				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
+				ChunkCoords cc = getBlockFromRaycast(r.position, 
+					r.normal, bc, true);
+
+				for(int i = -1; i <= 1; ++i)
+					for(int j = -1; j <= 1; ++j)
+						for(int k = -1; k <= 1; ++k)
+				{
+					ChunkCoords cc2 = cc + ChunkCoords(i,j,k);
+					BasicChunk* bc2 = correctChunkCoords(bc, cc2);
+					cc2.data = 0;
+					bc2->changeBlock(cc2);
+				}
+			}
+		}
+		else if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
 			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
 				8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
@@ -151,22 +240,73 @@ void PlayState::update(Real delta)
 			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
 				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
 
+			// YUCK
 			if(r.hit && r.userData)
 			{
 				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
 				ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
+
 				bc = correctChunkCoords(bc, cc);
 
 				BlockDirection d = getBlockDirectionFromVector(r.normal);
+				BlockDirection d_ = getBlockDirectionFromVector(r.normal * -1);
 				BlockDirection up = getBlockDirectionFromVector(
 					Plane(r.normal, 0).projectVector(mCam->mCamera->getAbsoluteUp()));
 
-				if(!getBlockVal(bc, cc) && !getBlockVal(bc, cc << up))
+				ChunkCoords cc2 = cc << up;
+				BasicChunk* bc2 = correctChunkCoords(bc, cc2);
+
+				if(!getBlockVal(bc, cc) && !getBlockVal(bc2, cc2) 
+					&& getBlockVal(bc, cc << d_) && getBlockVal(bc2, cc2 << d_))
 				{
 					Vector3 adjPos = bc->getPosition() - OFFSET + Vector3(cc.x, cc.y, cc.z);
 					adjPos -= BLOCK_NORMALS[d] * 0.5f;
 					adjPos += BLOCK_NORMALS[up] * 0.5f;
-						
+
+					for(int i = 0; i < 2; ++i)
+					{
+						if(mPortals[1]->chunks[0])
+							mPortals[1]->chunks[0]->clearLights();
+					}
+
+					mPortals[1]->lightVals[0] = getLightVal(bc, cc);
+					mPortals[1]->lightVals[1] = getLightVal(bc2, cc2);
+
+					mPortals[1]->cc[0] = cc;
+					mPortals[1]->cc[1] = cc2;
+
+					mPortals[1]->chunks[0] = bc;
+
+					if(bc2 != bc)
+					{
+						mPortals[1]->chunks[1] = bc2;
+					}
+					else
+					{
+						mPortals[1]->chunks[1] = 0;
+					}
+
+					mPortals[1]->placed = true;
+
+					if(mPortals[0]->placed && mPortals[1]->placed)
+					{
+						for(int i = 0; i < 2; ++i)
+						{
+							if(mPortals[0]->lightVals[i] < mPortals[1]->lightVals[i])
+							{
+								BasicChunk* tmp = mPortals[0]->chunks[i] ? mPortals[0]->chunks[i] : 
+									mPortals[0]->chunks[0];
+								tmp->addLight(mPortals[0]->cc[i], mPortals[1]->lightVals[i]);
+							}
+							else
+							{
+								BasicChunk* tmp = mPortals[1]->chunks[i] ? mPortals[1]->chunks[i] : 
+									mPortals[1]->chunks[0];
+								tmp->addLight(mPortals[1]->cc[i], mPortals[0]->lightVals[i]);
+							}
+						}
+					}
+
 					mPortals[1]->setPosition(adjPos);
 					mPortals[1]->setDirection(d, up);
 				}
@@ -195,22 +335,74 @@ void PlayState::update(Real delta)
 			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
 				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
 
+			// YUCK
 			if(r.hit && r.userData)
 			{
 				BasicChunk* bc = static_cast<BasicChunk*>(r.userData);
 				ChunkCoords cc = getBlockFromRaycast(r.position, r.normal, bc, false);
+
 				bc = correctChunkCoords(bc, cc);
 
 				BlockDirection d = getBlockDirectionFromVector(r.normal);
+				BlockDirection d_ = getBlockDirectionFromVector(r.normal * -1);
 				BlockDirection up = getBlockDirectionFromVector(
 					Plane(r.normal, 0).projectVector(mCam->mCamera->getAbsoluteUp()));
 
-				if(!getBlockVal(bc, cc) && !getBlockVal(bc, cc << up))
+				ChunkCoords cc2 = cc << up;
+				BasicChunk* bc2 = correctChunkCoords(bc, cc2);
+
+				if(!getBlockVal(bc, cc) && !getBlockVal(bc2, cc2) 
+					&& getBlockVal(bc, cc << d_) && getBlockVal(bc2, cc2 << d_))
 				{
 					Vector3 adjPos = bc->getPosition() - OFFSET + Vector3(cc.x, cc.y, cc.z);
 					adjPos -= BLOCK_NORMALS[d] * 0.5f;
 					adjPos += BLOCK_NORMALS[up] * 0.5f;
-						
+
+					for(int i = 0; i < 2; ++i)
+					{
+						if(mPortals[0]->chunks[0])
+							mPortals[0]->chunks[0]->clearLights();
+					}
+
+					mPortals[0]->lightVals[0] = getLightVal(bc, cc);
+					mPortals[0]->lightVals[1] = getLightVal(bc2, cc2);
+
+					mPortals[0]->cc[0] = cc;
+					mPortals[0]->cc[1] = cc2;
+
+					mPortals[0]->chunks[0] = bc;
+
+					if(bc2 != bc)
+					{
+						mPortals[0]->chunks[1] = bc2;
+
+					}
+					else
+					{
+						mPortals[0]->chunks[1] = 0;
+					}
+
+					mPortals[0]->placed = true;
+
+					if(mPortals[0]->placed && mPortals[1]->placed)
+					{
+						for(int i = 0; i < 2; ++i)
+						{
+							if(mPortals[0]->lightVals[i] < mPortals[1]->lightVals[i])
+							{
+								BasicChunk* tmp = mPortals[0]->chunks[i] ? mPortals[0]->chunks[i] : 
+									mPortals[0]->chunks[0];
+								tmp->addLight(mPortals[0]->cc[i], mPortals[1]->lightVals[i]);
+							}
+							else
+							{
+								BasicChunk* tmp = mPortals[1]->chunks[i] ? mPortals[1]->chunks[i] : 
+									mPortals[1]->chunks[0];
+								tmp->addLight(mPortals[1]->cc[i], mPortals[0]->lightVals[i]);
+							}
+						}
+					}
+
 					mPortals[0]->setPosition(adjPos);
 					mPortals[0]->setDirection(d, up);
 				}
@@ -237,6 +429,8 @@ void PlayState::updateCam(const Message& m)
 		mPortals[1]->setVisible(true);
 		mGfx->setActiveCamera(mCam->mCamera);
 		mUI->setHidden(false);
+		mPortals[0]->update(0.f);
+		mPortals[1]->update(0.f);
 	}
 	else if(portal == 1)
 	{

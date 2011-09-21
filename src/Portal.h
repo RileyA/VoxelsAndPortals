@@ -6,7 +6,10 @@
 #include "OryxObject.h"
 #include "Oryx3DMath.h"
 #include "ChunkOptions.h"
+#include "ChunkCoords.h"
 #include "OgreSubsystem/OgreSubsystem.h"
+
+class BasicChunk;
 
 /** A Portal, a la the game Portal; imagine that. */
 class Portal : public Oryx::Object
@@ -52,7 +55,15 @@ public:
 	/** Get the portal camera */
 	Camera* getCamera();
 
-protected:
+	// hackity hack...
+	BasicChunk* chunks[2];
+	byte lightVals[2];
+	ChunkCoords cc[2];
+	bool placed;
+	Vector3 upv;
+	Vector3 out;
+
+//protected:
 
 	// Hold onto a pointer to the gfx system for convenience
 	OgreSubsystem* mOgre;
@@ -72,6 +83,8 @@ protected:
 
 	// The portal that this is connected to (if any)
 	Portal* mSibling;
+
+	CollisionObject* mCollision;
 
 	// Position and direction of portal
 	Vector3 mDirection;

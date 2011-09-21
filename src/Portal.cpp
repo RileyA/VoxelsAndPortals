@@ -19,8 +19,10 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	// copy aspect ratio and FOV of main camera
 	mCamera->setFOV(mOgre->getActiveCamera()->getFOV());
 	mCamera->setAspectRatio(mOgre->getActiveCamera()->getAspectRatio());
+	mCamera->setFarClip(120.f);
+	mCamera->setNearClip(0.001f);
 
-	// ndoe the camera will be attached to
+	// node the camera will be attached to
 	mNode = mOgre->createSceneNode();
 	mNode->setPosition(Vector3::ZERO);
 	mNode->setOrientation(Quaternion::IDENTITY);
@@ -36,6 +38,28 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	// create decorative border mesh
 	mBorder = mOgre->createMesh("PortalBorder.mesh");
 	mOgre->getRootSceneNode()->addChild(mBorder);
+
+	MeshData d;
+	//mMesh->getMeshData(d, false, false, true);
+
+	d.vertex(Vector3(0.45,0.95,0));
+	d.vertex(Vector3(-0.45,0.95,0));
+	d.vertex(Vector3(-0.45,-0.95,0));
+	d.vertex(Vector3(0.45,0.95,0));
+	d.vertex(Vector3(0.45,-0.95,0));
+	d.vertex(Vector3(-0.45,-0.95,0));
+	//d.vertices.push_back();
+	
+	//d.vertices.push_back();
+
+	mCollision = static_cast<CollisionObject*>(
+		dynamic_cast<BulletSubsystem*>(Engine::getPtr()->getSubsystem("BulletSubsystem"))
+		->createStaticTrimesh(d, Vector3(0,0,0)));
+	mCollision->setCollisionGroup(COLLISION_GROUP_11);
+	mCollision->setCollisionMask(65535);
+	mCollision->setUserData(this);
+	//mCollision->setCollisionGroup(COLLISION_GROUP_11);
+	//mCollision->setCollisionMask(COLLISION_GROUP_11);
 
 	// orient the meshes
 	setPosition(mPosition);
@@ -95,16 +119,20 @@ void Portal::setPosition(Vector3 p)
 {
 	mMesh->setPosition(p);
 	mBorder->setPosition(p);
+	mCollision->setPosition(p);
 }
 //---------------------------------------------------------------------------
 
 void Portal::setDirection(Vector3 d, Vector3 up)
 {
+	upv = up;
+	out = d;
 	mDirection = d;
 	Quaternion q;
 	q.fromAxes(up.crossProduct(d), up, d);
 	mMesh->setOrientation(q);
 	mBorder->setOrientation(q);
+	mCollision->setOrientation(q);
 }
 //---------------------------------------------------------------------------
 

@@ -12,7 +12,7 @@
 
 // Default chunk size
 const static unsigned char CHUNK_SIZE_X = 16;
-const static unsigned char CHUNK_SIZE_Y = 16;
+const static unsigned char CHUNK_SIZE_Y = 127;
 const static unsigned char CHUNK_SIZE_Z = 16;
 const static unsigned char CHUNKSIZE[3] = 
 	{CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
@@ -108,8 +108,8 @@ const byte MAPPINGS[7][6] =
 	{4,4,4,4,4,4}*/
 	// Minecraft "terrain.png":
 	{1,1,1,1,1,1},// air
-	//{53,53,53,53,53,53},// shrub
-	{19,19,19,19,19,19},// sand
+	{53,53,53,53,53,53},// shrub
+	//{19,19,19,19,19,19},// sand
 	{2,2,2,2,2,2}, // dirt
 	{3,3,3,3,3,3}, // stone
 	{4,4,3,1,4,4}, // grass
@@ -130,7 +130,7 @@ enum BlockProperties
 const byte BLOCKTYPES[] = 
 {
 	BP_TRANSPARENT, //air
-	BP_SOLID, //shrub
+	BP_SOLID | BP_TRANSPARENT, //shrub
 	BP_SOLID, //dirt
 	BP_SOLID, //stone
 	BP_SOLID, //grass

@@ -8,6 +8,7 @@ Chunk::Chunk(ChunkGenerator* gen, InterChunkCoords position)
 	,mPosition(position)
 	,mGfxMesh(0)
 	,mPhysicsMesh(0)
+	,mActive(0)
 {
 	mMesh = new MeshData();
 	mGfx = Engine::getPtr()->getSubsystem("OgreSubsystem")->
@@ -32,8 +33,8 @@ void Chunk::update(bool full)
 	// lock 
 	boost::mutex::scoped_lock lock(mBlockMutex);
 
-	// if empty, then kill physics/gfx if they exist
-	if(mMesh->vertices.empty())
+	// if empty or deactivated, then kill physics/gfx if they exist
+	if(!mActive || mMesh->vertices.empty())
 	{
 		if(mPhysicsMesh)
 			mPhysicsMesh->_kill();

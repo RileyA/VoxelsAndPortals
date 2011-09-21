@@ -28,16 +28,19 @@ public:
 	 *		this isn't protected by a mutex, so no guarantees that it won't explode... */
 	int getNumActiveChunks(){return mNumActiveChunks;}
 
-private:
+	/** Notify that a chunk's lighting has been changed and needs an update */
+	void notifyChunkLightChange(BasicChunk* c);
+
+protected:
 
 	/** Generates any needed chunks */
-	void generate();
+	virtual void generate();
 
 	/** Activates any needed chunks */
-	void activate();
+	virtual void activate();
 
 	/** Apply changes to chunks */
-	void apply();
+	virtual void apply();
 
 	/** Do lighting calculations */
 	void light();

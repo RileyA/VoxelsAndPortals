@@ -18,6 +18,8 @@ set(SOURCE_FILES
 	FPSCamera.cpp
 	Portal.cpp
 	ThreadPool.cpp
+	TerrainChunkGenerator.cpp
+	TerrainChunk.cpp
 	)
 
 set(HEADER_FILES
@@ -33,8 +35,10 @@ set(HEADER_FILES
 	FPSCamera.h
 	Portal.h
 	ThreadPool.h
+	TerrainChunkGenerator.h
+	TerrainChunk.h
 	)
 
 add_executable(TechDemo ${SOURCE_FILES} ${HEADER_FILES} )
 set_target_properties(TechDemo PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries (TechDemo ${ORYX_LIB} ${BOOST_LIB} ${SUBSYSTEMS})
+target_link_libraries (TechDemo ${ORYX_LIB} ${BOOST_LIB} ${SUBSYSTEMS} libnoise.so)

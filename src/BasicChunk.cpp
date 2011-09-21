@@ -4,7 +4,7 @@
 #include "ChunkUtils.h"
 
 BasicChunk::BasicChunk(BasicChunkGenerator* gen, InterChunkCoords pos)
-	:Chunk(gen, pos),mActive(0),mBasicGenerator(gen)
+	:Chunk(gen, pos),mBasicGenerator(gen),mHasBeenActive(0)
 {
 	for(int i = 0; i < 6; ++i)
 		neighbors[i] = 0;
@@ -62,9 +62,10 @@ void BasicChunk::build(bool full)
 
 			// if it's a closed off cube, there's no need 
 			// (the player shouldn't ever end up in a 1x1x1 hole)
-			if(!adjacents[0] && !adjacents[1] && !adjacents[2] &&
-				!adjacents[3] && !adjacents[4] && !adjacents[5])
-				continue;
+			// Disabled for the moment (this was causing issues with transparent blocks...)
+			//if(!adjacents[0] && !adjacents[1] && !adjacents[2] &&
+			//	!adjacents[3] && !adjacents[4] && !adjacents[5])
+			//	continue;
 
 			// determine lighting conditions at this point
 			Real lighting = LIGHTVALUES[light[i][j][k]];
@@ -138,9 +139,13 @@ void BasicChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bo
 		}
 	}
 
-	for(std::list<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
 	{
-		doLighting(chunks, (*it), (*it).data, true);
+		boost::mutex::scoped_lock lock(mLightListMutex);
+
+		for(std::list<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
+		{
+			doLighting(chunks, (*it), (*it).data, true);
+		}
 	}
 }
 //---------------------------------------------------------------------------
@@ -160,11 +165,8 @@ void BasicChunk::changeBlock(const ChunkCoords& chng)
 bool BasicChunk::activate()
 {
 	boost::mutex::scoped_lock lock(mBlockMutex);
-	bool wasActive = true;
-	if(!mActive)
-	{
-		wasActive = false;
-	}
+	bool wasActive = mHasBeenActive;
+	mHasBeenActive = true;
 	mActive = true;
 	return !wasActive;
 }
@@ -173,7 +175,6 @@ bool BasicChunk::activate()
 void BasicChunk::deactivate()
 {
 	boost::mutex::scoped_lock lock(mBlockMutex);
-	// TODO: kill gfx mesh
 	mActive = false;
 }
 //---------------------------------------------------------------------------
@@ -184,6 +185,27 @@ bool BasicChunk::isActive()
 	return mActive;
 }
 //---------------------------------------------------------------------------
+
+void BasicChunk::clearLights()
+{
+	boost::mutex::scoped_lock lock(mLightListMutex);
+	if(!lights.empty())
+	{
+		lights.clear();
+		mBasicGenerator->notifyChunkLightChange(this);
+	}
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::addLight(ChunkCoords c, byte strength)
+{
+	boost::mutex::scoped_lock lock(mLightListMutex);
+	c.data = strength;
+	lights.push_back(c);
+	mBasicGenerator->notifyChunkLightChange(this);
+}
+//---------------------------------------------------------------------------
+
 
 void BasicChunk::makeQuad(
 	const ChunkCoords& chunkPos,
@@ -198,7 +220,7 @@ void BasicChunk::makeQuad(
 	if(!lightOnly)
 	{
 		// Texture atlas grid size (hardcoded for 16x16 atm, for Minecraft textures)
-		int atlasDimensions = 16;
+		int atlasDimensions = 2;
 		float gridSize = 1.f / atlasDimensions;
 	
 		// texcoord offset for this block type
@@ -255,8 +277,8 @@ void BasicChunk::makeQuad(
 
 		// apply to each channel (with some slight offsets to give the light a bit of color)
 		mMesh->diffuse.push_back(light);
-		mMesh->diffuse.push_back(light / 1.2f);
-		mMesh->diffuse.push_back(light / 1.4f);
+		mMesh->diffuse.push_back(light / 1.5);
+		mMesh->diffuse.push_back(light / 1.3);
 		mMesh->diffuse.push_back(1.f);// alpha's just always 1
 	}
 }

@@ -73,6 +73,8 @@ protected:
 	// Primary mutex
 	boost::mutex mBlockMutex;
 
+	bool mActive;
+
 };
 
 #endif

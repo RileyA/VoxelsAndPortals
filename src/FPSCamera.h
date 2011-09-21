@@ -30,6 +30,13 @@ namespace Oryx
 		SceneNode* mYawNode;
 		SceneNode* mPitchNode;
 		SceneNode* mPosNode;
+		SceneNode* mOriNode;
+
+		Vector3 up1;
+		Vector3 up2;
+
+		Real lastYaw;
+		Real lastPitch;
 	};
 }
 

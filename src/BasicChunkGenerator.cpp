@@ -33,9 +33,6 @@ void BasicChunkGenerator::backgroundThread()
 	
 	while(true)
 	{
-		// sleep for a sec, just so this isn't _constantly_ running...
-		boost::this_thread::sleep(boost::posix_time::milliseconds(30)); 
-
 		// Check if it's been signalled to exit
 		{
 			boost::mutex::scoped_lock lock(mExitLock);
@@ -59,6 +56,23 @@ void BasicChunkGenerator::backgroundThread()
 
 		// apply any changes to chunks
 		apply();
+
+		// build chunks that need it before lighting (lighting is easily the most expensive operation, so
+		// building first allows changes to take effect quicker (but causes awkward light changes...)
+		/*{
+			boost::mutex::scoped_lock lock(mDirtyListMutex);
+			
+			std::map<BasicChunk*, bool>::iterator it = mDirtyChunks.begin();
+
+			for(it; it != mDirtyChunks.end(); ++it)
+			{
+				if(it->second)
+					mThreadPool->addJob(new BuildJob(it->first, this, it->second));
+				it->second = false;
+			}
+		}
+		mThreadPool->startWorkers();
+		mThreadPool->waitForWorkers();*/
 	
 		// do lighting calculations (using thread pool)
 		light();
@@ -85,6 +99,43 @@ void BasicChunkGenerator::update(Real delta)
 	}
 
 	mBuiltChunks.clear();
+}
+//---------------------------------------------------------------------------
+
+void BasicChunkGenerator::notifyChunkLightChange(BasicChunk* c)
+{
+	boost::mutex::scoped_lock lock(mDirtyListMutex);
+
+	std::map<BasicChunk*, bool>::iterator look = 
+		mDirtyChunks.find(c);
+
+	if(look == mDirtyChunks.end())
+	{
+		mDirtyChunks[c] = false;
+
+		for(int i = -1; i <= 1; ++i)
+			for(int j = -1; j <= 1; ++j)
+				for(int k = -1; k <= 1; ++k)
+		{
+			InterChunkCoords temp = c->getInterChunkPosition() + InterChunkCoords(i,j,k);
+			
+			std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
+				mChunks.find(temp);
+
+			// if the neighbor exists, mark it for light update
+			if(iter != mChunks.end())
+			{
+				// look for it in the dirty chunk list...
+				std::map<BasicChunk*, bool>::iterator itera = 
+					mDirtyChunks.find(iter->second);
+
+				// if it's already slated for an update, leave it alone, since
+				// either it's already setup for lighting, or it needs a full build
+				if(itera == mDirtyChunks.end())
+					mDirtyChunks[iter->second] = false;
+			}
+		}
+	}
 }
 //---------------------------------------------------------------------------
 
@@ -169,12 +220,21 @@ void BasicChunkGenerator::activate()
 			mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos);
 		if(iter != mChunks.end())
 		{
-			if(iter->second->activate())
+			if(!iter->second->isActive())
 			{
 				++mNumActiveChunks;
-				boost::mutex::scoped_lock lock(mDirtyListMutex);
-				mDirtyChunks[iter->second] = true;
-				newlyActiveChunks.push_back(iter->second);
+
+				if(iter->second->activate())
+				{
+					boost::mutex::scoped_lock lock(mDirtyListMutex);
+					mDirtyChunks[iter->second] = true;
+					newlyActiveChunks.push_back(iter->second);
+				}
+				else
+				{
+					boost::mutex::scoped_lock lock(mBuiltListMutex);
+					mBuiltChunks[iter->second] = true;
+				}
 			}
 		}
 	}
@@ -195,6 +255,8 @@ void BasicChunkGenerator::activate()
 			// if the neighbor exists, mark it for light update
 			if(iter != mChunks.end())
 			{
+				boost::mutex::scoped_lock lock(mDirtyListMutex);
+
 				// look for it in the dirty chunk list...
 				std::map<BasicChunk*, bool>::iterator itera = 
 					mDirtyChunks.find(iter->second);

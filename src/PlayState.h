@@ -11,6 +11,7 @@
 #include "Portal.h"
 
 class BasicChunkGenerator;
+class TerrainChunkGenerator;
 
 class PlayState : public GameState
 {
@@ -37,7 +38,8 @@ private:
 
 	// Chunk stuff
 	ChunkManager* mChunkMgr;
-	BasicChunkGenerator* mGen;
+	//BasicChunkGenerator* mGen;
+	TerrainChunkGenerator* mGen;
 
 	// Plain 'ol FPS camera
 	FPSCamera* mCam;
