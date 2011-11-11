@@ -97,7 +97,7 @@ protected:
 		bool full;
 	};
 	//---------------------------------------------------------------------------
-	/** A ThreadPool Job for claulating a Chunk's lighting */
+	/** A ThreadPool Job for calculating a Chunk's lighting */
 	class LightJob : public ThreadPool::Job 
 	{
 	public:

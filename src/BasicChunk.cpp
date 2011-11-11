@@ -220,7 +220,7 @@ void BasicChunk::makeQuad(
 	if(!lightOnly)
 	{
 		// Texture atlas grid size (hardcoded for 16x16 atm, for Minecraft textures)
-		int atlasDimensions = 2;
+		int atlasDimensions = 16;
 		float gridSize = 1.f / atlasDimensions;
 	
 		// texcoord offset for this block type

@@ -63,7 +63,7 @@ public:
 	Vector3 upv;
 	Vector3 out;
 
-//protected:
+//protected: pssshhhh encapsulation?
 
 	// Hold onto a pointer to the gfx system for convenience
 	OgreSubsystem* mOgre;

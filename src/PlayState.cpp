@@ -42,8 +42,8 @@ void PlayState::init()
 	mGfx->setBackgroundColor(col2);
 	mGfx->setLinearFog(30.f,60.f,col);
 
-	// enable portal stencil hack with 5 visual recursions
-	mGfx->enablePortalHack(5);
+	// enable portal stencil hack with 3 visual recursions
+	mGfx->enablePortalHack(3);
 	
 	// so we can get signals during portal rendering (for setting up camera, visibility, etc)
 	mGfx->getSignal("updateCam")->addListener(createSlot("updateCam", this, &PlayState::updateCam));
@@ -86,7 +86,7 @@ void PlayState::init()
 	c->setPosition(Vector2(0.01f, 0.94f));
 
 	c = new Caption(b, 0);
-	c->setCaption("Portal Depth: 5");
+	c->setCaption("Portal Depth: 3");
 	c->setPosition(Vector2(0.01f, 0.89f));
 
 	c = new Caption(b, 0);
@@ -434,6 +434,12 @@ void PlayState::updateCam(const Message& m)
 	}
 	else if(portal == 1)
 	{
+		if(pass == 0)
+		{
+			mGfx->setActiveCamera(mCam->mCamera);
+			mPortals[0]->update(0.f);
+		}
+			
 		mPortals[0]->setVisible(true);
 		mPortals[1]->setVisible(false);
 		mGfx->setActiveCamera(mPortals[0]->getCamera());
@@ -443,6 +449,12 @@ void PlayState::updateCam(const Message& m)
 	}
 	else if(portal == 2)
 	{
+		if(pass == 0)
+		{
+			mGfx->setActiveCamera(mCam->mCamera);
+			mPortals[1]->update(0.f);
+		}
+
 		mPortals[0]->setVisible(false);
 		mPortals[1]->setVisible(true);
 		mGfx->setActiveCamera(mPortals[1]->getCamera());
@@ -450,7 +462,7 @@ void PlayState::updateCam(const Message& m)
 		if(pass > 0)
 			mPortals[1]->recurse();
 		// render UI at the end of the last render
-		if(pass == 4)
+		if(pass == 2)
 			mUI->setHidden(true);
 	}
 	else if(portal == 100)

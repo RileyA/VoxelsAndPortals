@@ -123,7 +123,7 @@ enum BlockProperties
 	// this makes the two mutually exclusive, which isn't ideal, but ah well
 	BP_SOLID = 1<<4,      // can be drawn as a block
 	BP_TRANSPARENT = 1<<5,// can be seen through
-	BP_SOMTHING = 1<<6,   // I dunno yet
+	BP_SOMETHING = 1<<6,  // I dunno yet
 	BP_EMISSIVE = 1<<7    // emits light
 };
 

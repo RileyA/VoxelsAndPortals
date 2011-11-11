@@ -40,17 +40,14 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	mOgre->getRootSceneNode()->addChild(mBorder);
 
 	MeshData d;
-	//mMesh->getMeshData(d, false, false, true);
 
+	// manually build collision mesh
 	d.vertex(Vector3(0.45,0.95,0));
 	d.vertex(Vector3(-0.45,0.95,0));
 	d.vertex(Vector3(-0.45,-0.95,0));
 	d.vertex(Vector3(0.45,0.95,0));
 	d.vertex(Vector3(0.45,-0.95,0));
 	d.vertex(Vector3(-0.45,-0.95,0));
-	//d.vertices.push_back();
-	
-	//d.vertices.push_back();
 
 	mCollision = static_cast<CollisionObject*>(
 		dynamic_cast<BulletSubsystem*>(Engine::getPtr()->getSubsystem("BulletSubsystem"))
@@ -58,8 +55,6 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	mCollision->setCollisionGroup(COLLISION_GROUP_11);
 	mCollision->setCollisionMask(65535);
 	mCollision->setUserData(this);
-	//mCollision->setCollisionGroup(COLLISION_GROUP_11);
-	//mCollision->setCollisionMask(COLLISION_GROUP_11);
 
 	// orient the meshes
 	setPosition(mPosition);
@@ -102,7 +97,7 @@ void Portal::update(Real delta)
 
 void Portal::setSibling(Portal* p)
 {	
-	// set the pointer and attach the camera node to it's mesh)
+	// set the pointer and attach the camera node to its mesh)
 	mSibling = p;
 	mSibling->mMesh->addChild(mNode);
 }

@@ -20,7 +20,7 @@ void TerrainChunkGenerator::generate()
 	// keep a list of newly generated chunks
 	std::list<std::pair<BasicChunk*,InterChunkCoords> > newChunks;
 
-	// generate (this could be threaded if it were generating anything expensive)
+	// generate (this could be threaded, but doesn't seem too slow just yet)
 	int j = 0;
 	for(int i = -5; i <= 5; ++i)
 		for(int k = -5; k <= 5; ++k)
@@ -46,7 +46,7 @@ void TerrainChunkGenerator::generate()
 			for(int x = 0; x < CHUNK_SIZE_X; ++x)
 				for(int z = 0; z < CHUNK_SIZE_Z; ++z)
 			{
-				// hackity hack
+				// hackity hacky terrain gen
 				int height = 50 + mPerlin->GetValue(
 					static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.0035,
 					static_cast<double>(0) * 0.0035,
@@ -101,7 +101,7 @@ void TerrainChunkGenerator::activate()
 	// keep a list of chunks that have been activated
 	std::list<BasicChunk*> newlyActiveChunks;
 
-	// activate all chunks within a 5x5 cube around the player
+	// activate all chunks within a 8x8 cube around the player
 	int j = 0;
 	for(int i = -4; i <= 4; ++i)
 		for(int k = -4; k <= 4; ++k)
@@ -217,24 +217,21 @@ void TerrainChunkGenerator::apply()
 
 				// if on edge, a neighbor will need update
 				// TODO: optimize out any cases where this may not be needed...
-				//if(i->onEdge())
-				//{
-					if(i->x == 0)
-						changedNeighbors[0] = true;
-					else if(i->x == CHUNK_SIZE_X-1)
-						changedNeighbors[1] = true;
-					if(i->z == 0)
-						changedNeighbors[4] = true;
-					else if(i->z == CHUNK_SIZE_Z-1)
-						changedNeighbors[5] = true;
-				//}
+				if(i->x == 0)
+					changedNeighbors[0] = true;
+				else if(i->x == CHUNK_SIZE_X-1)
+					changedNeighbors[1] = true;
+				if(i->z == 0)
+					changedNeighbors[4] = true;
+				else if(i->z == CHUNK_SIZE_Z-1)
+					changedNeighbors[5] = true;
 			}
 		}
 
 		// make sure to clear the changes
 		bc->mChanges.clear();
 
-		// makr block and neighbors dirty
+		// mark block and neighbors dirty
 		if(needsRebuild)
 		{
 			boost::mutex::scoped_lock lock(mDirtyListMutex);
