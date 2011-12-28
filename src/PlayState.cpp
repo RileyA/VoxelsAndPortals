@@ -6,7 +6,9 @@
 #include "ChunkUtils.h"
 #include "FPSCamera.h"
 #include "Portal.h"
+#include "OgreSubsystem/CustomRenderSequence.h"
 
+const static int PORTAL_RENDER_DEPTH = 3;
 
 PlayState::PlayState()
 	:mChunkMgr(0), mGfx(0), mAudio(0), mGUI(0), mInput(0), mPhysics(0)
@@ -42,11 +44,47 @@ void PlayState::init()
 	mGfx->setBackgroundColor(col2);
 	mGfx->setLinearFog(30.f,60.f,col);
 
-	// enable portal stencil hack with 3 visual recursions
-	mGfx->enablePortalHack(3);
-	
+	// Setup portal render sequence:
+
+	// initial pass
+	CustomRenderIteration& basePass = mRenderSequence.addIteration();
+
+	// first pass, the framebuffer is already clear
+	basePass.clearDepth = false;
+
+	// always pass
+	basePass.addStencilConfig(-1, CMPF_EQUAL, 0, 0xFFFFFFFF, 
+		SOP_ZERO, SOP_ZERO, SOP_ZERO);
+
+	// make the portals write to the stencil buffer
+	basePass.addStencilConfig(75, CMPF_ALWAYS_PASS, 1,  0xFFFFFFFF, 
+		SOP_KEEP, SOP_KEEP, SOP_REPLACE);
+	basePass.addStencilConfig(76, CMPF_ALWAYS_PASS, 51, 0xFFFFFFFF, 
+		SOP_KEEP, SOP_KEEP, SOP_REPLACE);
+
+	// add portal iterations
+	for(int p = 0; p < 2; ++p)
+	{
+		for(int i = 0; i < PORTAL_RENDER_DEPTH; ++i)
+		{
+			CustomRenderIteration& portal_pass = mRenderSequence.addIteration();
+			portal_pass.clearDepth = true;
+
+			// base stencil settings
+			portal_pass.addStencilConfig(-1, CMPF_EQUAL, 1 + i + 50 * p,
+				0xFFFFFFFF, SOP_KEEP, SOP_KEEP, SOP_KEEP);
+
+			// portal-specific render queue settings
+			portal_pass.addStencilConfig(75 + p, CMPF_EQUAL, 1 + i + 50 * p,
+				0xFFFFFFFF, SOP_KEEP, SOP_KEEP, SOP_INCREMENT);
+		}
+	}
+
+	mGfx->enableCustomRenderSequence(&mRenderSequence);
+
 	// so we can get signals during portal rendering (for setting up camera, visibility, etc)
-	mGfx->getSignal("updateCam")->addListener(createSlot("updateCam", this, &PlayState::updateCam));
+	mGfx->getSignal("CustomRenderSequenceIteration")->
+		addListener(createSlot("updateCam", this, &PlayState::updateCam));
 
 	// standard FPS-style camera (no character controller just yet)
 	mCam = new FPSCamera();
@@ -417,13 +455,13 @@ void PlayState::deinit() {}
 
 void PlayState::updateCam(const Message& m)
 {
-	const MessageAny<std::pair<int, int> >* ms =
-		message_cast<std::pair<int, int> >(m);
+	const MessageAny<int>* ms = message_cast<int>(m);
 
-	int portal = ms->data.first;
-	int pass = ms->data.second;
+	int val = ms->data;
+	int portal = (val - 1) / PORTAL_RENDER_DEPTH;
+	int pass   = (val - 1) % PORTAL_RENDER_DEPTH;
 
-	if(portal == 0)
+	if(val == 0)
 	{
 		mPortals[0]->setVisible(true);
 		mPortals[1]->setVisible(true);
@@ -432,7 +470,13 @@ void PlayState::updateCam(const Message& m)
 		mPortals[0]->update(0.f);
 		mPortals[1]->update(0.f);
 	}
-	else if(portal == 1)
+	else if(val == PORTAL_RENDER_DEPTH * 2 + 1)
+	{
+		mGfx->setActiveCamera(mCam->mCamera);
+		mPortals[0]->setVisible(true);
+		mPortals[1]->setVisible(true);
+	}
+	else if(portal == 0)
 	{
 		if(pass == 0)
 		{
@@ -447,7 +491,7 @@ void PlayState::updateCam(const Message& m)
 		if(pass > 0)
 			mPortals[0]->recurse();
 	}
-	else if(portal == 2)
+	else if(portal == 1)
 	{
 		if(pass == 0)
 		{
@@ -461,15 +505,10 @@ void PlayState::updateCam(const Message& m)
 
 		if(pass > 0)
 			mPortals[1]->recurse();
+
 		// render UI at the end of the last render
-		if(pass == 2)
+		if(pass == PORTAL_RENDER_DEPTH - 1)
 			mUI->setHidden(true);
-	}
-	else if(portal == 100)
-	{
-		mGfx->setActiveCamera(mCam->mCamera);
-		mPortals[0]->setVisible(true);
-		mPortals[1]->setVisible(true);
 	}
 }
 //---------------------------------------------------------------------------

@@ -8,6 +8,7 @@
 #include "GUISubsystem/GUIPanel.h"
 #include "GUISubsystem/GUICaption.h"
 #include "GUISubsystem/GUIButton.h"
+#include "OgreSubsystem/CustomRenderSequence.h"
 #include "Portal.h"
 
 class BasicChunkGenerator;
@@ -36,6 +37,8 @@ private:
 	GUISubsystem* mGUI;
 	BulletSubsystem* mPhysics;
 
+	CustomRenderSequence mRenderSequence;
+
 	// Chunk stuff
 	ChunkManager* mChunkMgr;
 	//BasicChunkGenerator* mGen;
@@ -54,6 +57,8 @@ private:
 	Caption* mActiveChunkCountText;
 	Caption* mSelectionText;
 	Caption* mCameraPositionText;
+
+
 
 	// Currently selected block
 	int mBlockSelected;
