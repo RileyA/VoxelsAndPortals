@@ -45,8 +45,14 @@ protected:
 	/** Do lighting calculations */
 	void light();
 
+	/** Rebuild chunk meshes that require it (then mark them for light update) */
+	void buildRebuilds();
+
 	/** Build chunk meshes */
 	void build();
+
+	/** Update portal lighting */
+	void updatePortalLighting();
 
 	// The chunks themselves
 	std::map<InterChunkCoords, BasicChunk*> mChunks;

@@ -11,7 +11,7 @@ class BasicChunkGenerator;
 class BasicChunk : public Chunk
 {
 public:
-
+	
 	BasicChunk(BasicChunkGenerator* gen, InterChunkCoords pos);
 	virtual ~BasicChunk();
 
@@ -109,6 +109,9 @@ public:
 	/** Adds a light emitting block */
 	void addLight(ChunkCoords c, byte strength);
 
+	/** Explicity mark for relight (mainly used for portal light updates) */
+	void needsRelight();
+
 	/** So the chunk generator can get at this thing's data more easily */
 	friend class BasicChunkGenerator;
 	friend class TerrainChunkGenerator;
@@ -125,7 +128,13 @@ protected:
 	 *	@param lightVal The lighting to pass along
 	 *	@param emitter If this is an emitting block */
 	void doLighting(const std::map<BasicChunk*, bool>& chunks, 
-		ChunkCoords& coords, byte lightVal, bool emitter);
+		ChunkCoords coords, byte lightVal, bool emitter);
+
+	/** Calculates lighting by recursively tracing through the chunks 
+	 *	@param coords The position in the current Chunk
+	 *	@param lightVal The lighting to pass along
+	 *	@param emitter If this is an emitting block */
+	void doLighting(ChunkCoords coords, byte lightVal, bool emitter);
 
 	/** Helper that creates a quad 
 	 *	@param chunkPos Which block we're dealing with 
@@ -197,7 +206,7 @@ protected:
 
 	// light emitting blocks
 	boost::mutex mLightListMutex;
-	std::list<ChunkCoords> lights;
+	std::set<ChunkCoords> lights;
 	// TODO: something for portals and associated light changes...
 	
 	bool mHasBeenActive;

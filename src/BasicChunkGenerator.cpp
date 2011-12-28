@@ -59,25 +59,16 @@ void BasicChunkGenerator::backgroundThread()
 
 		// build chunks that need it before lighting (lighting is easily the most expensive operation, so
 		// building first allows changes to take effect quicker (but causes awkward light changes...)
-		/*{
-			boost::mutex::scoped_lock lock(mDirtyListMutex);
-			
-			std::map<BasicChunk*, bool>::iterator it = mDirtyChunks.begin();
-
-			for(it; it != mDirtyChunks.end(); ++it)
-			{
-				if(it->second)
-					mThreadPool->addJob(new BuildJob(it->first, this, it->second));
-				it->second = false;
-			}
-		}
-		mThreadPool->startWorkers();
-		mThreadPool->waitForWorkers();*/
+		//buildRebuilds();
+		//mThreadPool->startWorkers();
+		//mThreadPool->waitForWorkers();
 	
 		// do lighting calculations (using thread pool)
 		light();
 		mThreadPool->startWorkers();
 		mThreadPool->waitForWorkers();
+
+		updatePortalLighting();	
 
 		// build meshes (using thread pool)
 		build();
@@ -167,14 +158,14 @@ void BasicChunkGenerator::generate()
 				byte x = rand()%CHUNK_SIZE_X;
 				byte y = rand()%CHUNK_SIZE_Y;
 				byte z = rand()%CHUNK_SIZE_Z;
-				c->lights.push_back(ChunkCoords(x,y,z, 15));
+				c->lights.insert(ChunkCoords(x,y,z, 15));
 
 				for(int f = 0; f < 20; ++f) 
 				{
 					x = rand()%CHUNK_SIZE_X;
 					y = rand()%CHUNK_SIZE_Y;
 					z = rand()%CHUNK_SIZE_Z;
-					c->lights.push_back(ChunkCoords(x,y,z, 15));
+					c->lights.insert(ChunkCoords(x,y,z, 15));
 				}
 			}
 			else
@@ -388,6 +379,21 @@ void BasicChunkGenerator::light()
 }
 //---------------------------------------------------------------------------
 
+void BasicChunkGenerator::buildRebuilds()
+{
+	boost::mutex::scoped_lock lock(mDirtyListMutex);
+	
+	std::map<BasicChunk*, bool>::iterator it = mDirtyChunks.begin();
+
+	for(it; it != mDirtyChunks.end(); ++it)
+	{
+		if(it->second)
+			mThreadPool->addJob(new BuildJob(it->first, this, it->second));
+		it->second = false;
+	}
+}
+//---------------------------------------------------------------------------
+
 void BasicChunkGenerator::build()
 {	
 	// build all dirty chunks
@@ -402,5 +408,43 @@ void BasicChunkGenerator::build()
 
 	// all dirty chunks are now pending rebuilds, so we can just clear the whole thing
 	mDirtyChunks.clear();
+}
+//---------------------------------------------------------------------------
+
+void BasicChunkGenerator::updatePortalLighting()
+{
+	boost::mutex::scoped_lock(mPortalMutex);
+	boost::mutex::scoped_lock lock(mDirtyListMutex);
+
+	if(mPortalsEnabled && (
+		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[0][0].first)) != mDirtyChunks.end() || 
+		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[0][1].first)) != mDirtyChunks.end() || 
+		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[1][0].first)) != mDirtyChunks.end() || 
+		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[1][1].first)) != mDirtyChunks.end()))
+	{
+		for(int i = 0; i < 2; ++i)
+		{
+			byte l1 = static_cast<BasicChunk*>(mPortals[0][i].first)->light
+				[mPortals[0][i].second.x][mPortals[0][i].second.y][mPortals[0][i].second.z];
+			byte l2 = static_cast<BasicChunk*>(mPortals[1][i].first)->light
+				[mPortals[1][i].second.x][mPortals[1][i].second.y][mPortals[1][i].second.z];
+
+			if(l1 != l2)
+			{
+				byte updatePortal = l1 < l2 ? 0 : 1;
+				byte lightVal = std::max(l1,l2);
+
+				BasicChunk* c = static_cast<BasicChunk*>(mPortals[updatePortal][i].first);
+				c->setLight(mPortals[updatePortal][i].second, lightVal);
+				c->doLighting(mPortals[updatePortal][i].second, lightVal, true);
+
+				if(mDirtyChunks.find(c) == mDirtyChunks.end())
+					mDirtyChunks[c] = false;
+				for(int i = 0; i < 6; ++i)
+					if(c->neighbors[i] && mDirtyChunks.find(c->neighbors[i]) == mDirtyChunks.end())
+						mDirtyChunks[c->neighbors[i]] = false;
+			}
+		}
+	}
 }
 //---------------------------------------------------------------------------

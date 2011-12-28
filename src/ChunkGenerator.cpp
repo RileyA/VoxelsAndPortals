@@ -1,7 +1,7 @@
 #include "ChunkGenerator.h"
 
 ChunkGenerator::ChunkGenerator()
-	:mPlayerPos(0,0,0), mInterChunkPos(0,0,0),mDone(false) {}
+	:mPlayerPos(0,0,0), mInterChunkPos(0,0,0),mDone(false) {mPortalsEnabled = false;}
 //---------------------------------------------------------------------------
 
 ChunkGenerator::~ChunkGenerator() 
@@ -52,5 +52,28 @@ void ChunkGenerator::notifyChunkChange(Chunk* c)
 {
 	boost::mutex::scoped_lock lock(mChangeSetMutex);
 	mChangedChunks.insert(c);
+}
+//---------------------------------------------------------------------------
+
+void ChunkGenerator::setPortalInfo() 
+{
+	boost::mutex::scoped_lock lock(mPortalMutex);
+	mPortalsEnabled = false;
+}
+//---------------------------------------------------------------------------
+
+void ChunkGenerator::setPortalInfo(Chunk** chunks, ChunkCoords* coords)
+{
+	boost::mutex::scoped_lock lock(mPortalMutex);
+	mPortalsEnabled = true;
+	for(int i = 0; i < 4; ++i)
+	{
+		if(!chunks[i])
+		{
+			mPortalsEnabled = false;
+			return;
+		}
+		mPortals[i/2][i%2] = std::make_pair(chunks[i], coords[i]);
+	}
 }
 //---------------------------------------------------------------------------

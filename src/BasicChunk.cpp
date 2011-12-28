@@ -142,7 +142,7 @@ void BasicChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bo
 	{
 		boost::mutex::scoped_lock lock(mLightListMutex);
 
-		for(std::list<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
+		for(std::set<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
 		{
 			doLighting(chunks, (*it), (*it).data, true);
 		}
@@ -201,7 +201,13 @@ void BasicChunk::addLight(ChunkCoords c, byte strength)
 {
 	boost::mutex::scoped_lock lock(mLightListMutex);
 	c.data = strength;
-	lights.push_back(c);
+	lights.insert(c);
+	mBasicGenerator->notifyChunkLightChange(this);
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::needsRelight()
+{
 	mBasicGenerator->notifyChunkLightChange(this);
 }
 //---------------------------------------------------------------------------
@@ -285,7 +291,7 @@ void BasicChunk::makeQuad(
 //---------------------------------------------------------------------------
 
 void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
-	ChunkCoords& coords, byte lightVal, bool emitter)
+	ChunkCoords coords, byte lightVal, bool emitter)
 {
 	int8 trans = 0;
 
@@ -323,6 +329,53 @@ void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
 			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
 			{
 				tmp->doLighting(chunks, coords, lightVal - trans, false);
+			}
+
+			// reset coords
+			coords = old;
+		}
+	}
+}
+//---------------------------------------------------------------------------
+
+void BasicChunk::doLighting(ChunkCoords coords, byte lightVal, bool emitter)
+{
+	int8 trans = 0;
+
+	// only proceed if this is an emitter, OR a transparent block with
+	// a lesser light value than lightVal
+	if(emitter || (lightVal > 0 && (trans = getTransparency(
+		blocks[coords.x][coords.y][coords.z])) &&
+		(setLight(coords,lightVal))))
+	{
+		// loop through each direction
+		for(int i = BD_LEFT; i <= BD_BACK; ++i)
+		{
+			// hold onto the original value, so we can backtrack
+			ChunkCoords old = coords;
+
+			// nudge in the proper direction
+			coords[AXIS[i]] += AXIS_OFFSET[i];
+
+			// since it may cross into other chunks
+			BasicChunk* tmp = this;
+
+			// check for out of bounds
+			if(coords[AXIS[i]] < 0)
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+			}
+			else if(coords[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = 0;
+			}
+
+			// continue (if on an edge, then only do so if it exists in the map)
+			if(lightVal - trans > 0 && tmp)
+			{
+				tmp->doLighting(coords, lightVal - trans, false);
 			}
 
 			// reset coords

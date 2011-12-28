@@ -37,8 +37,7 @@ void PlayState::init()
 	// start up bullet for collision detection
 	mPhysics->startSimulation();
 
-	// a dark background color helps hide momentary gaps, that may occur when blocks are
-	// changed on edges, and one chunk updates before the other
+	// background and fog colors
 	Colour col = Colour(255/255.f,200/255.f,158/255.f);
 	Colour col2 = Colour(211/255.f,234/255.f,243/255.f);
 	mGfx->setBackgroundColor(col2);
@@ -52,11 +51,11 @@ void PlayState::init()
 	// first pass, the framebuffer is already clear
 	basePass.clearDepth = false;
 
-	// always pass
+	// write 0's
 	basePass.addStencilConfig(-1, CMPF_EQUAL, 0, 0xFFFFFFFF, 
 		SOP_ZERO, SOP_ZERO, SOP_ZERO);
 
-	// make the portals write to the stencil buffer
+	// make the portals write distinct values to the stencil buffer
 	basePass.addStencilConfig(75, CMPF_ALWAYS_PASS, 1,  0xFFFFFFFF, 
 		SOP_KEEP, SOP_KEEP, SOP_REPLACE);
 	basePass.addStencilConfig(76, CMPF_ALWAYS_PASS, 51, 0xFFFFFFFF, 
@@ -70,11 +69,12 @@ void PlayState::init()
 			CustomRenderIteration& portal_pass = mRenderSequence.addIteration();
 			portal_pass.clearDepth = true;
 
-			// base stencil settings
+			// base stencil settings (only draw if within portal mask from prior frame)
 			portal_pass.addStencilConfig(-1, CMPF_EQUAL, 1 + i + 50 * p,
 				0xFFFFFFFF, SOP_KEEP, SOP_KEEP, SOP_KEEP);
 
-			// portal-specific render queue settings
+			// portal-specific render queue settings (only draw if within portal 
+			// from prior frame, and increment to define the mask for the next frame)
 			portal_pass.addStencilConfig(75 + p, CMPF_EQUAL, 1 + i + 50 * p,
 				0xFFFFFFFF, SOP_KEEP, SOP_KEEP, SOP_INCREMENT);
 		}
@@ -92,18 +92,6 @@ void PlayState::init()
 	// make the portals
 	mPortals[0] = new Portal(Vector3(-6.5f,-7,-3.f), BD_BACK, BD_UP, true);
 	mPortals[1] = new Portal(Vector3(-6.5f,-7,3), BD_LEFT, BD_UP, false);
-
-	// quick and ugly hack for light through portals
-	mPortals[0]->chunks[0] = 0;
-	mPortals[0]->chunks[1] = 0;
-	mPortals[1]->chunks[0] = 0;
-	mPortals[1]->chunks[1] = 0;
-	mPortals[0]->lightVals[0] = 0;
-	mPortals[0]->lightVals[1] = 0;
-	mPortals[1]->lightVals[0] = 0;
-	mPortals[1]->lightVals[1] = 0;
-	mPortals[0]->placed = 0;
-	mPortals[1]->placed = 0;
 
 	// connect them (eventually I'd like to allow any number of portal pairs, but for now
 	// everythings very hacky and hardcoded to do two portals...
@@ -152,7 +140,7 @@ void PlayState::init()
 	c->setPosition(Vector2(0.8f, 0.94f));
 	mSelectionText = c;
 
-	mBlockSelected = 2;
+	mBlockSelected = 6;
 
 	// hook it up with the rendering system
 	mUI = mGfx->createScreenMesh("UITEST");
@@ -216,6 +204,13 @@ void PlayState::update(Real delta)
 
 	// update player position with the chunk generator
 	mGen->setPlayerPos(mCam->getPosition());
+
+	Chunk* cs[4] = {mPortals[0]->chunks[0], mPortals[0]->chunks[1],
+		mPortals[1]->chunks[0], mPortals[1]->chunks[1]};
+	ChunkCoords co[4] = {mPortals[0]->cc[0], mPortals[0]->cc[1],
+		mPortals[1]->cc[0], mPortals[1]->cc[1]};
+
+	mGen->setPortalInfo(cs, co);
 	
 	// same o' same o'
 	if(mInput->wasKeyPressed("KC_ESCAPE"))
@@ -301,49 +296,15 @@ void PlayState::update(Real delta)
 					adjPos -= BLOCK_NORMALS[d] * 0.5f;
 					adjPos += BLOCK_NORMALS[up] * 0.5f;
 
-					for(int i = 0; i < 2; ++i)
-					{
-						if(mPortals[1]->chunks[0])
-							mPortals[1]->chunks[0]->clearLights();
-					}
-
-					mPortals[1]->lightVals[0] = getLightVal(bc, cc);
-					mPortals[1]->lightVals[1] = getLightVal(bc2, cc2);
-
 					mPortals[1]->cc[0] = cc;
 					mPortals[1]->cc[1] = cc2;
 
 					mPortals[1]->chunks[0] = bc;
+					mPortals[1]->chunks[1] = bc2;
+					bc->needsRelight();
 
 					if(bc2 != bc)
-					{
-						mPortals[1]->chunks[1] = bc2;
-					}
-					else
-					{
-						mPortals[1]->chunks[1] = 0;
-					}
-
-					mPortals[1]->placed = true;
-
-					if(mPortals[0]->placed && mPortals[1]->placed)
-					{
-						for(int i = 0; i < 2; ++i)
-						{
-							if(mPortals[0]->lightVals[i] < mPortals[1]->lightVals[i])
-							{
-								BasicChunk* tmp = mPortals[0]->chunks[i] ? mPortals[0]->chunks[i] : 
-									mPortals[0]->chunks[0];
-								tmp->addLight(mPortals[0]->cc[i], mPortals[1]->lightVals[i]);
-							}
-							else
-							{
-								BasicChunk* tmp = mPortals[1]->chunks[i] ? mPortals[1]->chunks[i] : 
-									mPortals[1]->chunks[0];
-								tmp->addLight(mPortals[1]->cc[i], mPortals[0]->lightVals[i]);
-							}
-						}
-					}
+						bc2->needsRelight();
 
 					mPortals[1]->setPosition(adjPos);
 					mPortals[1]->setDirection(d, up);
@@ -396,50 +357,15 @@ void PlayState::update(Real delta)
 					adjPos -= BLOCK_NORMALS[d] * 0.5f;
 					adjPos += BLOCK_NORMALS[up] * 0.5f;
 
-					for(int i = 0; i < 2; ++i)
-					{
-						if(mPortals[0]->chunks[0])
-							mPortals[0]->chunks[0]->clearLights();
-					}
-
-					mPortals[0]->lightVals[0] = getLightVal(bc, cc);
-					mPortals[0]->lightVals[1] = getLightVal(bc2, cc2);
-
 					mPortals[0]->cc[0] = cc;
 					mPortals[0]->cc[1] = cc2;
 
 					mPortals[0]->chunks[0] = bc;
+					mPortals[0]->chunks[1] = bc2;
+					bc->needsRelight();
 
 					if(bc2 != bc)
-					{
-						mPortals[0]->chunks[1] = bc2;
-
-					}
-					else
-					{
-						mPortals[0]->chunks[1] = 0;
-					}
-
-					mPortals[0]->placed = true;
-
-					if(mPortals[0]->placed && mPortals[1]->placed)
-					{
-						for(int i = 0; i < 2; ++i)
-						{
-							if(mPortals[0]->lightVals[i] < mPortals[1]->lightVals[i])
-							{
-								BasicChunk* tmp = mPortals[0]->chunks[i] ? mPortals[0]->chunks[i] : 
-									mPortals[0]->chunks[0];
-								tmp->addLight(mPortals[0]->cc[i], mPortals[1]->lightVals[i]);
-							}
-							else
-							{
-								BasicChunk* tmp = mPortals[1]->chunks[i] ? mPortals[1]->chunks[i] : 
-									mPortals[1]->chunks[0];
-								tmp->addLight(mPortals[1]->cc[i], mPortals[0]->lightVals[i]);
-							}
-						}
-					}
+						bc2->needsRelight();
 
 					mPortals[0]->setPosition(adjPos);
 					mPortals[0]->setDirection(d, up);

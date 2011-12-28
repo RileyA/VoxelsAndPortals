@@ -81,7 +81,7 @@ void TerrainChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, 
 		}
 	}
 
-	for(std::list<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
+	for(std::set<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
 	{
 		doLighting(chunks, (*it), (*it).data, true);
 	}

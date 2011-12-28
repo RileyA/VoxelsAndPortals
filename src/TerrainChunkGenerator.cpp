@@ -208,6 +208,22 @@ void TerrainChunkGenerator::apply()
 		{
 			if(bc->blocks[(*i).x][(*i).y][(*i).z] != (*i).data)
 			{
+				if(BLOCKTYPES[bc->blocks[(*i).x][(*i).y][(*i).z]] & BP_EMISSIVE || BLOCKTYPES[
+					(*i).data] & BP_EMISSIVE)
+				{
+					boost::mutex::scoped_lock lock(bc->mLightMutex);
+
+					std::set<ChunkCoords>::iterator tmpLight = bc->lights.find(*i);
+
+					// if a light existed already, delete it
+					if(tmpLight != bc->lights.end())
+						bc->lights.erase(tmpLight);
+
+					// if the new block is emissive, add it
+					if(BLOCKTYPES[(*i).data] & BP_EMISSIVE)
+						bc->lights.insert(ChunkCoords((*i).x, (*i).y, (*i).z, BLOCKTYPES[(*i).data] & 0x0F));
+				}
+
 				bc->blocks[(*i).x][(*i).y][(*i).z] = (*i).data;
 				needsRebuild = true;
 

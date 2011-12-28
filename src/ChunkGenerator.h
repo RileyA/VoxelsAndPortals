@@ -37,6 +37,9 @@ public:
 	/** Notify that a chunk has been changed and will need an update */
 	void notifyChunkChange(Chunk* c);
 
+	void setPortalInfo();
+	void setPortalInfo(Chunk** chunks, ChunkCoords* coords);
+
 protected:
 
 	// Last known player position
@@ -52,6 +55,11 @@ protected:
 	boost::mutex mExitLock;
 	boost::thread mThread;
 	bool mDone;
+
+	// portal stuff (hacky)
+	boost::mutex mPortalMutex;
+	bool mPortalsEnabled;
+	std::pair<Chunk*, ChunkCoords> mPortals[2][2];
 
 };
 

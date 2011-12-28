@@ -65,6 +65,9 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 
 	// set appropriate border color
 	mBorder->setMaterialName(mBlue ? "PortalBorderBlue" : "PortalBorderOrange");
+
+	chunks[0] = 0;
+	chunks[1] = 0;
 }
 //---------------------------------------------------------------------------
 
