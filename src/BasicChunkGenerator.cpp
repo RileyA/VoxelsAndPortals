@@ -29,7 +29,7 @@ BasicChunkGenerator::~BasicChunkGenerator()
 void BasicChunkGenerator::backgroundThread()
 {
 	// make thread pool
-	mThreadPool = new ThreadPool(6);
+	mThreadPool = new ThreadPool(GENERATOR_WORKER_THREADS);
 	
 	while(true)
 	{

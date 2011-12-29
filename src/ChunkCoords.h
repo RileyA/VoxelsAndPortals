@@ -92,6 +92,12 @@ struct ChunkCoords
 		return std::lexicographical_compare(&x,&z+1,&coord.x,&coord.z+1);
 	}
 	//---------------------------------------------------------------------------
+
+	bool operator == (const ChunkCoords& c) const
+	{
+		return x == c.x && y == c.y && z == c.z;
+	}
+	//---------------------------------------------------------------------------
 };
 
 /** Used for chunk addressing (non unionized, heh) */
@@ -141,6 +147,12 @@ struct InterChunkCoords
 	bool operator < (const InterChunkCoords& c) const
 	{
 		return std::lexicographical_compare(&x,&z+1,&c.x,&c.z+1);
+	}
+	//---------------------------------------------------------------------------
+
+	bool operator == (const InterChunkCoords& c) const
+	{
+		return x == c.x && y == c.y && z == c.z;
 	}
 	//---------------------------------------------------------------------------
 };

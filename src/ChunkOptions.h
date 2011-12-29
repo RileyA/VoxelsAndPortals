@@ -10,6 +10,8 @@
 // #define BLOCK_NORMALS
 #define SMOOTH_LIGHTING
 
+const static int GENERATOR_WORKER_THREADS = 6;
+
 // Default chunk size
 const static unsigned char CHUNK_SIZE_X = 16;
 const static unsigned char CHUNK_SIZE_Y = 127;
@@ -110,11 +112,22 @@ const byte MAPPINGS[7][6] =
 	{1,1,1,1,1,1},// air
 	{53,53,53,53,53,53},// shrub
 	//{19,19,19,19,19,19},// sand
-	{2,2,2,2,2,2}, // dirt
-	{3,3,3,3,3,3}, // stone
+	{2,2,2,2,2,2}, // stone
+	{3,3,3,3,3,3}, // dirt
 	{4,4,3,1,4,4}, // grass
 	{21,21,22,22,21,21},// tree trunk
 	{24,24,24,24,24,24}// gold (emissive)
+};
+
+const String BLOCK_NAMES[] = 
+{
+	"Air",
+	"Shrub",
+	"Stone",
+	"Dirt",
+	"Grass",
+	"Log",
+	"Gold",
 };
 
 enum BlockProperties

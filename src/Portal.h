@@ -9,8 +9,7 @@
 #include "ChunkCoords.h"
 #include "OgreSubsystem/OgreSubsystem.h"
 
-class BasicChunk;
-
+class BasicChunk; 
 /** A Portal, a la the game Portal; imagine that. */
 class Portal : public Oryx::Object
 {
@@ -52,16 +51,19 @@ public:
 	/** Transform camera position for snazzy portal rendering */
 	void recurse();
 
+	void place(const RaycastReport& r);
+
+	void disable();
+
 	/** Get the portal camera */
 	Camera* getCamera();
 
-	// hackity hack...
-	BasicChunk* chunks[2];
-	byte lightVals[2];
-	ChunkCoords cc[2];
-	bool placed;
-	Vector3 upv;
-	Vector3 out;
+	ChunkCoords getCoords(int index) {return mCoords[index];}
+	BasicChunk* getChunk(int index)  {return mChunks[index];}
+
+	bool isEnabled(){return mEnabled;}
+
+	bool inPortal(BasicChunk* ch, ChunkCoords c, bool behind);
 
 //protected: pssshhhh encapsulation?
 
@@ -90,9 +92,16 @@ public:
 	Vector3 mDirection;
 	Vector3 mPosition;
 
+	BlockDirection mDir;
+
 	// sort of a hack, but distinguishes this portal from it's mate
 	// for rendering and other purposes
 	bool mBlue;
+
+	BasicChunk* mChunks[2];
+	ChunkCoords mCoords[2];
+
+	bool mEnabled;
 
 };
 
