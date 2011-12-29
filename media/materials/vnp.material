@@ -1,0 +1,152 @@
+
+material DebugUI
+{
+	technique
+	{
+		pass
+		{
+			scene_blend alpha_blend
+			cull_hardware none
+			cull_software none
+			//depth_write off
+			depth_check off	
+			lighting off
+			/polygon_mode wireframe
+			texture_unit
+			{
+				texture TechDemo.png
+				filtering trilinear
+				tex_address_mode clamp
+			}
+		}
+	}
+}
+
+material Portal1_new
+{
+	technique 0
+	{
+		pass
+		{
+			depth_bias 1 1
+			scene_blend add
+			//depth_write off
+			texture_unit
+			{
+				texture portal2.png
+				filtering none
+			}
+		}
+	}
+}
+
+
+material Portal2_new
+{
+	technique 0
+	{
+		pass
+		{
+			depth_bias 1 1
+			scene_blend add
+			//depth_write off
+			texture_unit
+			{
+				texture portal2.png
+				filtering none
+			}
+		}
+	}
+}
+
+material PortalMask
+{
+	technique
+	{
+		scheme regular
+		pass
+		{
+			depth_bias 10 5
+			//depth_func equal
+			scene_blend alpha_blend
+			//scene_blend add
+			//depth_write off
+			texture_unit
+			{
+				texture nothing.png
+				filtering none
+			}
+		}
+	}
+}
+
+material PortalBorderOrange
+{
+	technique
+	{
+		pass
+		{
+			depth_bias 1 2
+			scene_blend alpha_blend
+			texture_unit
+			{
+				texture PortalBorderOrange.png
+				filtering none
+			}
+		}
+	}
+}
+
+material PortalBorderBlue
+{
+	technique 0
+	{
+		pass
+		{
+			depth_bias 1 2
+			scene_blend alpha_blend
+			texture_unit
+			{
+				texture PortalBorderBlue.png
+				filtering none
+			}
+		}
+	}
+}
+
+material MeinKraft
+{
+	technique
+	{
+		pass
+		{
+			scheme regular
+			lighting off
+			alpha_rejection greater 100
+
+			texture_unit
+			{
+				filtering none
+				texture terrain.png
+				tex_address_mode wrap
+			}
+		}
+	}
+
+	technique
+	{
+		scheme alternative
+		pass
+		{
+			lighting off
+			alpha_rejection greater 100
+
+			texture_unit
+			{
+				filtering none
+				texture terrain2.png
+				tex_address_mode wrap
+			}
+		}
+	}
+}

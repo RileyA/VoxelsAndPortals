@@ -38,4 +38,7 @@ include_directories("${ORYX_INCLUDE_DIR}")
 include_directories("${ORYX_SUBSYSTEM_INCLUDE_DIR}")
 include_directories("src")
 
+# copy art assets and scripts over to the bin dir
+file(COPY ./media DESTINATION ./)
+
 add_subdirectory(src)

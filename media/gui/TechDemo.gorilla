@@ -1,0 +1,221 @@
+[Texture]
+file TechDemo.png
+whitepixel 252 252
+
+[Font.20]
+lineheight 31
+spacelength 8
+baseline 25
+kerning -0.5
+monowidth 20
+range 33 126
+glyph_33 1 0 12 32 10
+glyph_34 13 0 14 32 12
+glyph_35 27 0 24 32 22
+glyph_36 51 0 19 32 17
+glyph_37 70 0 27 32 25
+glyph_38 97 0 23 32 21
+glyph_39 120 0 9 32 7
+glyph_40 129 0 12 32 10
+glyph_41 141 0 12 32 10
+glyph_42 153 0 15 32 13
+glyph_43 168 0 24 32 22
+glyph_44 192 0 10 32 8
+glyph_45 202 0 11 32 9
+glyph_46 213 0 10 32 8
+glyph_47 223 0 10 32 9
+glyph_48 233 0 19 32 17
+glyph_49 0 32 19 32 17
+glyph_50 19 32 19 32 17
+glyph_51 38 32 19 32 17
+glyph_52 57 32 19 32 17
+glyph_53 76 32 19 32 17
+glyph_54 95 32 19 32 17
+glyph_55 114 32 19 32 17
+glyph_56 133 32 19 32 17
+glyph_57 152 32 19 32 17
+glyph_58 171 32 10 32 9
+glyph_59 181 32 10 32 9
+glyph_60 191 32 24 32 22
+glyph_61 215 32 24 32 22
+glyph_62 0 64 24 32 22
+glyph_63 24 64 16 32 14
+glyph_64 40 64 29 32 27
+glyph_65 69 64 20 32 18
+glyph_66 89 64 20 32 18
+glyph_67 109 64 20 32 19
+glyph_68 129 64 22 32 21
+glyph_69 151 64 19 32 17
+glyph_70 170 64 17 32 15
+glyph_71 187 64 23 32 21
+glyph_72 210 64 22 32 20
+glyph_73 232 64 9 32 8
+glyph_74 241 64 9 32 8
+glyph_75 0 96 19 32 17
+glyph_76 19 96 16 32 15
+glyph_77 35 96 25 32 23
+glyph_78 60 96 22 32 20
+glyph_79 82 96 23 32 21
+glyph_80 105 96 18 32 16
+glyph_81 123 96 23 32 21
+glyph_82 146 96 20 32 18
+glyph_83 166 96 19 32 17
+glyph_84 185 96 18 32 16
+glyph_85 203 96 21 32 19
+glyph_86 224 96 20 32 18
+glyph_87 0 128 28 32 27
+glyph_88 28 128 20 32 18
+glyph_89 48 128 18 32 16
+glyph_90 66 128 20 32 18
+glyph_91 86 128 12 32 10
+glyph_92 98 128 10 32 9
+glyph_93 108 128 12 32 10
+glyph_94 120 128 24 32 22
+glyph_95 144 128 15 32 13
+glyph_96 159 128 15 32 13
+glyph_97 174 128 18 32 16
+glyph_98 192 128 19 32 17
+glyph_99 211 128 16 32 15
+glyph_100 227 128 19 32 17
+glyph_101 0 160 18 32 16
+glyph_102 18 160 11 32 9
+glyph_103 29 160 19 32 17
+glyph_104 48 160 19 32 17
+glyph_105 67 160 9 32 7
+glyph_106 76 160 9 32 7
+glyph_107 85 160 17 32 15
+glyph_108 102 160 9 32 7
+glyph_109 111 160 28 32 26
+glyph_110 139 160 19 32 17
+glyph_111 158 160 18 32 16
+glyph_112 176 160 19 32 17
+glyph_113 195 160 19 32 17
+glyph_114 214 160 12 32 11
+glyph_115 226 160 15 32 14
+glyph_116 241 160 12 32 10
+glyph_117 0 192 19 32 17
+glyph_118 19 192 17 32 16
+glyph_119 36 192 24 32 22
+glyph_120 60 192 17 32 16
+glyph_121 77 192 17 32 16
+glyph_122 94 192 16 32 14
+glyph_123 110 192 19 32 17
+glyph_124 129 192 10 32 9
+glyph_125 139 192 19 32 17
+glyph_126 158 192 24 32 22
+kerning_45 71 1
+kerning_45 74 1
+kerning_45 81 1
+kerning_45 84 -2
+kerning_45 86 -1
+kerning_45 87 -1
+kerning_45 88 -1
+kerning_45 89 -3
+kerning_65 84 -2
+kerning_65 86 -1
+kerning_65 87 -1
+kerning_65 89 -2
+kerning_65 118 -1
+kerning_65 119 -1
+kerning_65 121 -1
+kerning_66 89 -1
+kerning_68 89 -1
+kerning_70 46 -4
+kerning_70 58 -2
+kerning_70 65 -2
+kerning_70 97 -2
+kerning_70 101 -1
+kerning_70 105 -1
+kerning_70 114 -1
+kerning_70 117 -1
+kerning_70 121 -2
+kerning_71 89 -1
+kerning_75 45 -2
+kerning_75 67 -1
+kerning_75 79 -1
+kerning_75 84 -2
+kerning_75 101 -1
+kerning_75 111 -1
+kerning_75 117 -1
+kerning_75 121 -1
+kerning_76 84 -3
+kerning_76 85 -1
+kerning_76 86 -3
+kerning_76 87 -2
+kerning_76 89 -3
+kerning_76 121 -2
+kerning_79 46 -1
+kerning_79 88 -1
+kerning_79 89 -1
+kerning_80 46 -4
+kerning_80 65 -1
+kerning_80 97 -1
+kerning_82 45 -1
+kerning_82 65 -1
+kerning_82 67 -1
+kerning_82 84 -1
+kerning_82 86 -1
+kerning_82 87 -1
+kerning_82 89 -1
+kerning_82 101 -1
+kerning_82 111 -1
+kerning_82 117 -1
+kerning_82 121 -1
+kerning_84 45 -2
+kerning_84 46 -3
+kerning_84 58 -3
+kerning_84 65 -2
+kerning_84 67 -1
+kerning_84 97 -4
+kerning_84 99 -4
+kerning_84 101 -4
+kerning_84 111 -4
+kerning_84 114 -4
+kerning_84 115 -4
+kerning_84 117 -4
+kerning_84 119 -4
+kerning_84 121 -4
+kerning_86 45 -1
+kerning_86 46 -3
+kerning_86 58 -2
+kerning_86 65 -1
+kerning_86 97 -2
+kerning_86 101 -2
+kerning_86 111 -2
+kerning_86 117 -1
+kerning_87 45 -1
+kerning_87 46 -3
+kerning_87 58 -1
+kerning_87 65 -1
+kerning_87 97 -1
+kerning_87 101 -1
+kerning_87 111 -1
+kerning_87 114 -1
+kerning_88 45 -1
+kerning_88 67 -1
+kerning_88 79 -1
+kerning_88 101 -1
+kerning_89 45 -3
+kerning_89 46 -5
+kerning_89 58 -3
+kerning_89 65 -2
+kerning_89 67 -1
+kerning_89 79 -1
+kerning_89 97 -3
+kerning_89 101 -3
+kerning_89 111 -3
+kerning_89 117 -3
+kerning_102 45 -1
+kerning_102 46 -1
+kerning_114 45 -1
+kerning_114 46 -2
+kerning_118 46 -2
+kerning_118 58 -1
+kerning_119 46 -2
+kerning_119 58 -1
+kerning_121 46 -3
+kerning_121 58 -1
+
+[Sprites]
+test 15 474 80 25
+cursor 111 475 16 23
