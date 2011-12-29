@@ -32,7 +32,7 @@ void PlayState::init()
 	mPhysics = dynamic_cast<BulletSubsystem*>(mEngine->getSubsystem("BulletSubsystem"));
 
 	// start up input, grab the mouse
-	mInput->initInput(mGfx->getWindowHandle(), false);
+	mInput->initInput(mGfx->getWindowHandle(), true);
 
 	// start up bullet for collision detection
 	mPhysics->startSimulation();
@@ -220,8 +220,11 @@ void PlayState::update(Real delta)
 	{
 		if(mInput->isKeyDown("KC_L"))
 		{
-			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-				50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+			//RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+			//	50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			RaycastReport r;
+			raycastThroughPortals(r, mCam->getPosition(),mCam->getDirection(), 50.f);
 
 			if(r.hit && r.userData && r.group != COLLISION_GROUP_11)
 			{
@@ -250,8 +253,11 @@ void PlayState::update(Real delta)
 		}
 		else if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
-			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-				8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+			//RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
+			//	8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+
+			RaycastReport r;
+			raycastThroughPortals(r, mCam->getPosition(),mCam->getDirection(), 8.f);
 
 			if(r.hit && r.userData && r.group != COLLISION_GROUP_11)
 			{
@@ -283,8 +289,8 @@ void PlayState::update(Real delta)
 	{
 		if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
-			RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-				5.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
+			RaycastReport r;
+			raycastThroughPortals(r, mCam->getPosition(),mCam->getDirection(), 5.f);
 
 			if(r.hit && r.userData && r.group != COLLISION_GROUP_11)
 			{
@@ -379,3 +385,46 @@ void PlayState::updateCam(const Message& m)
 		mUI->setHidden(false);
 }
 //---------------------------------------------------------------------------
+
+bool PlayState::raycastThroughPortals(RaycastReport& out, Vector3 pos, Vector3 dir, Real dist)
+{
+	RaycastReport r1 = mPhysics->raycast(pos, dir, dist, 
+		COLLISION_GROUP_3, COLLISION_GROUP_3);
+	RaycastReport r2 = mPhysics->raycast(pos, dir, dist, 
+		COLLISION_GROUP_3 | COLLISION_GROUP_2, COLLISION_GROUP_3 | COLLISION_GROUP_2);
+
+	Real d1 = r1.position.distance(pos);
+	Real d2 = r2.position.distance(pos);
+
+	Real d = std::min(d1, d2);
+	out = (d1 + 0.05f) < d2 ? r1 : r2;
+	
+	if(!out.hit || dist < 0.f)
+	{
+		return false;
+	}
+	else if(out.group == COLLISION_GROUP_11)
+	{
+		Portal* p = static_cast<Portal*>(out.userData);
+
+		// transform position from one portal's coordinate space to the other
+		Vector3 newPos = p->mNode->localToWorldPosition(
+			p->mMesh->worldToLocalPosition(out.position));	
+
+		Quaternion rotation = p->mNode->localToWorldOrientation(
+			p->mMesh->worldToLocalOrientation(Quaternion::IDENTITY));
+
+		Vector3 newDir = rotation * dir;
+		newDir.normalize();
+		newPos += newDir * 0.05f;
+
+		out.hit = 0;
+		raycastThroughPortals(out, newPos, newDir, dist - d); 
+	}
+	else
+	{
+		return true;
+	}
+}
+//---------------------------------------------------------------------------
+

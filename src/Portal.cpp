@@ -80,7 +80,7 @@ Portal::~Portal()
 	mOgre->destroySceneNode(mMesh);
 	mOgre->destroySceneNode(mBorder);
 }
-//---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
 
 void Portal::update(Real delta)
 {

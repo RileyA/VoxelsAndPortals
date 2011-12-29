@@ -28,6 +28,8 @@ public:
 	/** Used for updating portal cameras */
 	void updateCam(const Message& m);
 
+	bool raycastThroughPortals(RaycastReport& out, Vector3 pos, Vector3 dir, Real dist);
+
 private:
 
 	// Subsystems
