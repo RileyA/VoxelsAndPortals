@@ -20,7 +20,7 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	// copy aspect ratio and FOV of main camera
 	mCamera->setFOV(mOgre->getActiveCamera()->getFOV());
 	mCamera->setAspectRatio(mOgre->getActiveCamera()->getAspectRatio());
-	mCamera->setFarClip(120.f);
+	mCamera->setFarClip(100.f);
 	mCamera->setNearClip(0.001f);
 
 	// node the camera will be attached to
@@ -67,8 +67,10 @@ Portal::Portal(Vector3 pos, BlockDirection out, BlockDirection up, bool blue)
 	// set appropriate border color
 	mBorder->setMaterialName(mBlue ? "PortalBorderBlue" : "PortalBorderOrange");
 
+	mEnabled = true;
 	mChunks[0] = 0;
 	mChunks[1] = 0;
+	disable();
 }
 //---------------------------------------------------------------------------
 
@@ -183,14 +185,13 @@ void Portal::place(const RaycastReport& r)
 			adjPos -= BLOCK_NORMALS[d] * 0.5f;
 			adjPos += BLOCK_NORMALS[up] * 0.5f;
 
-			if(mSibling && mSibling->isEnabled())
+			if(mSibling && mSibling->isEnabled() && mSibling->mDir == mDir)
 			{
 				BlockDirection d_back = static_cast<BlockDirection>(AXIS_INVERT[d]);
-				BlockDirection sd_back = static_cast<BlockDirection>(AXIS_INVERT[mSibling->mDir]);
-				if( coords  << d_back == mSibling->getCoords(0) << sd_back || 
-					coords2 << d_back == mSibling->getCoords(1) << sd_back ||
-					coords2 << d_back == mSibling->getCoords(0) << sd_back ||
-					coords << d_back  == mSibling->getCoords(1) << sd_back)
+				if( coords  << d_back == mSibling->getCoords(0) << d_back || 
+					coords2 << d_back == mSibling->getCoords(1) << d_back ||
+					coords2 << d_back == mSibling->getCoords(0) << d_back ||
+					coords << d_back  == mSibling->getCoords(1) << d_back)
 					return;
 			}
 

@@ -9,6 +9,8 @@ namespace noise
 	namespace module
 	{
 		class Perlin;
+		class Billow;
+		class RidgedMulti;
 	}
 }
 
@@ -33,6 +35,11 @@ protected:
 	virtual void apply();
 
 	noise::module::Perlin* mPerlin;
+	noise::module::RidgedMulti* mRidged;
+	noise::module::Billow* mBillow;
+
+	// a list of the currently active chunks
+	std::list<BasicChunk*> mActiveChunks;
 
 };
 

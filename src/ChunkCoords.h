@@ -56,7 +56,7 @@ struct ChunkCoords
 
 	ChunkCoords operator + (const ChunkCoords& coord) const
 	{
-		return ChunkCoords(x+coord.x,y+coord.y,z+coord.z);
+		return ChunkCoords(x+coord.x,y+coord.y,z+coord.z,data);
 	}
 	//---------------------------------------------------------------------------
 	
@@ -100,7 +100,7 @@ struct ChunkCoords
 	//---------------------------------------------------------------------------
 };
 
-/** Used for chunk addressing (non unionized, heh) */
+/** Used for chunk addressing */
 struct InterChunkCoords
 {
 	int32_t x,y,z;
@@ -164,5 +164,25 @@ const static ChunkCoords ChunkOffsets[6] =
 	ChunkCoords(0,1,0),
 	ChunkCoords(0,0,-1),
 	ChunkCoords(0,0,1)};
+
+struct ChunkChange
+{
+	ChunkChange()
+	{
+		origBlock = 0;
+		newLight = 0;
+	}
+	ChunkChange(byte orig, byte light)
+	{
+		origBlock = orig;
+		newLight = light;
+	}
+	
+	// original block value
+	byte origBlock;
+	// new light emission value (0 if not emitter)
+	int8 newLight;
+};
+
 
 #endif

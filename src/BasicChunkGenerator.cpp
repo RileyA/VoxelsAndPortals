@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "BasicChunkGenerator.h"
+#include "TerrainChunk.h"
 
 BasicChunkGenerator::BasicChunkGenerator()
 {
@@ -57,12 +58,6 @@ void BasicChunkGenerator::backgroundThread()
 		// apply any changes to chunks
 		apply();
 
-		// build chunks that need it before lighting (lighting is easily the most expensive operation, so
-		// building first allows changes to take effect quicker (but causes awkward light changes...)
-		//buildRebuilds();
-		//mThreadPool->startWorkers();
-		//mThreadPool->waitForWorkers();
-	
 		// do lighting calculations (using thread pool)
 		light();
 		mThreadPool->startWorkers();
@@ -373,7 +368,7 @@ void BasicChunkGenerator::light()
 	for(it; it != mDirtyChunks.end(); ++it)
 	{
 		// we have to clear lighting first
-		it->first->clearLighting();
+		//it->first->clearLighting();
 		mThreadPool->addJob(new LightJob(mDirtyChunks, this, it->first, it->second));
 	}
 }
@@ -403,7 +398,8 @@ void BasicChunkGenerator::build()
 
 	for(it; it != mDirtyChunks.end(); ++it)
 	{
-		mThreadPool->addJob(new BuildJob(it->first, this, it->second));
+		if(it->second || it->first->lightDirty)
+			mThreadPool->addJob(new BuildJob(it->first, this, it->second));
 	}
 
 	// all dirty chunks are now pending rebuilds, so we can just clear the whole thing
@@ -414,37 +410,105 @@ void BasicChunkGenerator::build()
 void BasicChunkGenerator::updatePortalLighting()
 {
 	boost::mutex::scoped_lock(mPortalMutex);
-	boost::mutex::scoped_lock lock(mDirtyListMutex);
 
-	if(mPortalsEnabled && (
-		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[0][0].first)) != mDirtyChunks.end() || 
-		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[0][1].first)) != mDirtyChunks.end() || 
-		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[1][0].first)) != mDirtyChunks.end() || 
-		mDirtyChunks.find(static_cast<BasicChunk*>(mPortals[1][1].first)) != mDirtyChunks.end()))
+	// very hacky 4am code, just trying to make it work with the new 
+	// lighting system for now; it'll get cleaned up later
+	
+	bool lightChanged = mPortalData[0].status != PortalInfo::PS_UNCHANGED 
+		|| mPortalData[1].status != PortalInfo::PS_UNCHANGED;
+
+	if(!lightChanged && mPortalData[0].active &&mPortalData[1].active )
 	{
 		for(int i = 0; i < 2; ++i)
 		{
-			byte l1 = static_cast<BasicChunk*>(mPortals[0][i].first)->light
-				[mPortals[0][i].second.x][mPortals[0][i].second.y][mPortals[0][i].second.z];
-			byte l2 = static_cast<BasicChunk*>(mPortals[1][i].first)->light
-				[mPortals[1][i].second.x][mPortals[1][i].second.y][mPortals[1][i].second.z];
-
-			if(l1 != l2)
+			if(mPortalData[i].status == PortalInfo::PS_UNCHANGED && 
+				mPortalData[i].active)
 			{
-				byte updatePortal = l1 < l2 ? 0 : 1;
-				byte lightVal = std::max(l1,l2);
-
-				BasicChunk* c = static_cast<BasicChunk*>(mPortals[updatePortal][i].first);
-				c->setLight(mPortals[updatePortal][i].second, lightVal);
-				c->doLighting(mPortals[updatePortal][i].second, lightVal, true);
-
-				if(mDirtyChunks.find(c) == mDirtyChunks.end())
-					mDirtyChunks[c] = false;
-				for(int i = 0; i < 6; ++i)
-					if(c->neighbors[i] && mDirtyChunks.find(c->neighbors[i]) == mDirtyChunks.end())
-						mDirtyChunks[c->neighbors[i]] = false;
+				for(int j = 0; j < 2; ++j)
+				{
+					if(mPortalData[i].light[j] != mPortalData[i].chunks[j]->light[mPortalData[i].coords[j].x]
+						[mPortalData[i].coords[j].y][mPortalData[i].coords[j].z])
+					{
+						lightChanged = true;
+						break;
+					}
+				}
+				if(lightChanged)
+					break;
 			}
+		}
+	}
+	
+	if(lightChanged)
+	{
+		// handle deactivation first
+		for(int i = 0; i < 2; ++i)
+		{
+			// sibling wasn't active before now, there can't be any light to clean up
+			if(!mPortalData[!i].wasActive)
+				break;
+				
+			if(mPortalData[i].wasActive)
+			{
+				for(int j = 0; j < 2; ++j)
+				{
+					if(mPortalData[i].prevChunks[j]->light[mPortalData[i].prevCoords[j].x]
+						[mPortalData[i].prevCoords[j].y][mPortalData[i].prevCoords[j].z] == 15)
+						continue;
+
+					mPortalData[i].prevChunks[j]->light[mPortalData[i].prevCoords[j].x]
+						[mPortalData[i].prevCoords[j].y][mPortalData[i].prevCoords[j].z] = 0;
+
+					mPortalData[i].prevChunks[j]->doInvLighting(mPortalData[i].prevCoords[j], 
+						0, mPortalData[i].light[j]);
+
+					mPortalData[i].prevChunks[j]->needsRelight();
+
+					if(mPortalData[i].status == PortalInfo::PS_DEACTIVATED)
+						mPortalData[i].light[j] = 0;
+				}
+			}
+		}
+
+		// now deal with activation
+		for(int i = 0; i < 2; ++i)
+		{
+			// sibling isn't active, no light to propagate
+			if(!mPortalData[!i].active)
+				break;
+
+			if(mPortalData[i].active)
+			{
+				for(int j = 0; j < 2; ++j)
+				{
+					// get sibling's light value
+					byte lt = std::min((int)mPortalData[!i].chunks[j]->light[mPortalData[!i].coords[j].x]
+						[mPortalData[!i].coords[j].y][mPortalData[!i].coords[j].z], (int)14);
+					
+					// propagate if brighter
+					if(mPortalData[i].chunks[j]->setLight(mPortalData[i].coords[j], lt))
+					{
+						mPortalData[i].chunks[j]->doLighting(mPortalData[i].coords[j], lt, true);
+						mPortalData[i].chunks[j]->needsRelight();
+					}
+
+					// set new light value
+					mPortalData[i].light[j] = mPortalData[i].chunks[j]->light[mPortalData[i].coords[j].x]
+						[mPortalData[i].coords[j].y][mPortalData[i].coords[j].z];
+				}
+			}
+		}
+
+		for(int i = 0; i < 2; ++i)
+		{
+			mPortalData[i].status = PortalInfo::PS_UNCHANGED;
+			mPortalData[i].wasActive = mPortalData[i].active;
+			mPortalData[i].prevCoords[0] = mPortalData[i].coords[0];
+			mPortalData[i].prevCoords[1] = mPortalData[i].coords[1];
+			mPortalData[i].prevChunks[0] = mPortalData[i].chunks[0];
+			mPortalData[i].prevChunks[1] = mPortalData[i].chunks[1];
 		}
 	}
 }
 //---------------------------------------------------------------------------
+

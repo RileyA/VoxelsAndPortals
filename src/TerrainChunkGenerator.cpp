@@ -1,11 +1,17 @@
 #include "TerrainChunkGenerator.h"
 #include <noise/noise.h>
 
-void addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, int k);
+
+//void addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, int k);
+bool addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, int k,
+	std::list<ChunkCoords>& changes);
 
 TerrainChunkGenerator::TerrainChunkGenerator()
 {
 	mPerlin = new noise::module::Perlin();
+	//mRidged = new noise::module::RidgedMulti();
+	//mBillow = new noise::module::Billow();
+	//mPerlin->SetSeed(rand());
 }
 //---------------------------------------------------------------------------
 
@@ -21,60 +27,75 @@ void TerrainChunkGenerator::generate()
 	std::list<std::pair<BasicChunk*,InterChunkCoords> > newChunks;
 
 	// generate (this could be threaded, but doesn't seem too slow just yet)
-	int j = 0;
-	for(int i = -5; i <= 5; ++i)
-		for(int k = -5; k <= 5; ++k)
+	for(int p = 0; p < 3; ++p)
 	{
-		if(mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos) == mChunks.end())
+		if(!mObserverPositions[p].first)
+			continue;
+
+		int j = 0;
+		for(int i = -GENERATE_CHUNK_DISTANCE; i <= GENERATE_CHUNK_DISTANCE; ++i)
+			for(int k = -GENERATE_CHUNK_DISTANCE; k <= GENERATE_CHUNK_DISTANCE; ++k)
 		{
-			++mNumGeneratedChunks;
-
-			InterChunkCoords loc(i,j,k);
-			loc = loc + mInterChunkPos;
-
-			BasicChunk* c = new TerrainChunk(this, loc);
-
-			if(loc.x==0&&loc.y==0&&loc.z==0)
+			if(mChunks.find(InterChunkCoords(i,j,k) + mObserverPositions[p].second) == mChunks.end())
 			{
-				boost::mutex::scoped_lock lock(mDirtyListMutex);
-				mDirtyChunks[c] = true;
-			}
+				++mNumGeneratedChunks;
 
-			memset(c->blocks, 0, CHUNK_VOLUME);
-			memset(c->light, 9, CHUNK_VOLUME);
+				InterChunkCoords loc(i,j,k);
+				loc = loc + mObserverPositions[p].second;
 
-			for(int x = 0; x < CHUNK_SIZE_X; ++x)
-				for(int z = 0; z < CHUNK_SIZE_Z; ++z)
-			{
-				// hackity hacky terrain gen
-				int height = 50 + mPerlin->GetValue(
-					static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.0035,
-					static_cast<double>(0) * 0.0035,
-					static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.0035) * 25
-				+ mPerlin->GetValue(
-					static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.007,
-					static_cast<double>(4000) * 0.007,
-					static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.007) * 
-				mPerlin->GetValue(
-					static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.017,
-					static_cast<double>(2000) * 0.017,
-					static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.017) * 20;
+				BasicChunk* c = new TerrainChunk(this, loc);
 
-				for(int y = height; y >= 0; --y)
+				if(loc.x==0&&loc.y==0&&loc.z==0)
 				{
-					if(y == height)
-						c->blocks[x][height][z] = 4;
-					else if(y > height - 4)
-						c->blocks[x][y][z] = 3;
-					else
-						c->blocks[x][y][z] = 2;
+					boost::mutex::scoped_lock lock(mDirtyListMutex);
+					mDirtyChunks[c] = true;
 				}
 
-				addTree(c->blocks, x, height, z);
-			}
+				memset(c->blocks, 0, CHUNK_VOLUME);
+				memset(c->light, 0, CHUNK_VOLUME);
 
-			mChunks[loc] = c;
-			newChunks.push_back(std::make_pair(c, loc));
+				for(int x = 0; x < CHUNK_SIZE_X; ++x)
+					for(int z = 0; z < CHUNK_SIZE_Z; ++z)
+				{
+					// hackity hacky terrain gen
+					int height = 50 + mPerlin->GetValue(
+						static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.0035,
+						static_cast<double>(0) * 0.0035,
+						static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.0035) * 25
+					+ mPerlin->GetValue(
+						static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.007,
+						static_cast<double>(4000) * 0.007,
+						static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.007) * 
+					mPerlin->GetValue(
+						static_cast<double>(x + loc.x * CHUNK_SIZE_X) * 0.017,
+						static_cast<double>(2000) * 0.017,
+						static_cast<double>(z + loc.z * CHUNK_SIZE_Z) * 0.017) * 20;
+
+					for(int y = height; y >= 0; --y)
+					{
+						if(y == height)
+							c->blocks[x][height][z] = BT_GRASS;
+						else if(y > height - 4)
+							c->blocks[x][y][z] = BT_DIRT;
+						else
+							c->blocks[x][y][z] = BT_STONE;
+					}
+
+					for(int y = height + 1; y < CHUNK_SIZE_Y; ++y)
+					{
+						c->light[x][y][z] = 15;
+					}
+
+					if(addTree(c->blocks, x, height, z, c->mChanges))
+					{
+						boost::mutex::scoped_lock lock(mChangeSetMutex);
+						mChangedChunks.insert(c);
+					}
+				}
+
+				mChunks[loc] = c;
+				newChunks.push_back(std::make_pair(c, loc));
+			}
 		}
 	}
 
@@ -101,51 +122,67 @@ void TerrainChunkGenerator::activate()
 	// keep a list of chunks that have been activated
 	std::list<BasicChunk*> newlyActiveChunks;
 
-	// activate all chunks within a 8x8 cube around the player
-	int j = 0;
-	for(int i = -4; i <= 4; ++i)
-		for(int k = -4; k <= 4; ++k)
+	// loop through all active chunks and deactivate all that don't need it
+	for(std::list<BasicChunk*>::iterator it = mActiveChunks.begin(); it != mActiveChunks.end(); ++it)
 	{
-		std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
-			mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos);
-		if(iter != mChunks.end())
-		{
-			if(!iter->second->isActive())
-			{
-				++mNumActiveChunks;
+		InterChunkCoords crds = (*it)->getInterChunkPosition();
+		bool shouldRemainActive = false;
 
-				if(iter->second->activate())
-				{
-					boost::mutex::scoped_lock lock(mDirtyListMutex);
-					mDirtyChunks[iter->second] = true;
-					newlyActiveChunks.push_back(iter->second);
-				}
-				else
-				{
-					boost::mutex::scoped_lock lock(mBuiltListMutex);
-					mBuiltChunks[iter->second] = true;
-				}
+		for(int p = 0; p < 3; ++p)
+		{
+			if(!mObserverPositions[p].first)
+				continue;
+
+			if(abs(mObserverPositions[p].second.x - crds.x) <= DEACTIVATE_CHUNK_DISTANCE &&
+			   abs(mObserverPositions[p].second.z - crds.z) <= DEACTIVATE_CHUNK_DISTANCE)
+			{
+				shouldRemainActive = true;
+				break;
 			}
+		}
+
+		if(!shouldRemainActive)
+		{
+			--mNumActiveChunks;
+			(*it)->deactivate();
+			boost::mutex::scoped_lock lock(mBuiltListMutex);
+			mBuiltChunks[*it] = true;
+			it = mActiveChunks.erase(it);
 		}
 	}
 
-	// deactivate chunks outside that radius...
-	for(int i = -5; i <= 5; ++i)
-		for(int k = -5; k <= 5; ++k)
+	// now activate chunks around each observer
+	for(int p = 0; p < 3; ++p)
 	{
-		if((i > -5 && i < 5) && (k > -5 && k < 5))
+		if(!mObserverPositions[p].first)
 			continue;
 
-		std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
-			mChunks.find(InterChunkCoords(i,j,k) + mInterChunkPos);
-		if(iter != mChunks.end())
+		int j = 0;
+		for(int i = -ACTIVE_CHUNK_DISTANCE; i <= ACTIVE_CHUNK_DISTANCE; ++i)
+			for(int k = -ACTIVE_CHUNK_DISTANCE; k <= ACTIVE_CHUNK_DISTANCE; ++k)
 		{
-			if(iter->second->isActive())
+			std::map<InterChunkCoords,BasicChunk*>::iterator iter = 
+				mChunks.find(InterChunkCoords(i,j,k) + mObserverPositions[p].second);
+
+			if(iter != mChunks.end())
 			{
-				--mNumActiveChunks;
-				iter->second->deactivate();
-				boost::mutex::scoped_lock lock(mBuiltListMutex);
-				mBuiltChunks[iter->second] = true;
+				if(!iter->second->isActive())
+				{
+					++mNumActiveChunks;
+					mActiveChunks.push_back(iter->second);
+
+					if(iter->second->activate())
+					{
+						boost::mutex::scoped_lock lock(mDirtyListMutex);
+						mDirtyChunks[iter->second] = true;
+						newlyActiveChunks.push_back(iter->second);
+					}
+					else
+					{
+						boost::mutex::scoped_lock lock(mBuiltListMutex);
+						mBuiltChunks[iter->second] = true;
+					}
+				}
 			}
 		}
 	}
@@ -154,7 +191,7 @@ void TerrainChunkGenerator::activate()
 	for(std::list<BasicChunk*>::iterator it = 
 		newlyActiveChunks.begin(); it != newlyActiveChunks.end(); ++it)
 	{
-		//int j = 0;
+		int j = 0;
 		for(int i = -1; i <= 1; ++i)
 			for(int k = -1; k <= 1; ++k)
 		{
@@ -206,42 +243,55 @@ void TerrainChunkGenerator::apply()
 		// TODO: account for updates that cancel each other out
 		for(std::list<ChunkCoords>::iterator i = bc->mChanges.begin(); i != bc->mChanges.end(); ++i)
 		{
-			if(bc->blocks[(*i).x][(*i).y][(*i).z] != (*i).data)
+			std::map<ChunkCoords, ChunkChange>::iterator iter = bc->mConfirmedChanges.find(*i);
+
+			if(iter == bc->mConfirmedChanges.end())
 			{
-				if(BLOCKTYPES[bc->blocks[(*i).x][(*i).y][(*i).z]] & BP_EMISSIVE || BLOCKTYPES[
-					(*i).data] & BP_EMISSIVE)
-				{
-					boost::mutex::scoped_lock lock(bc->mLightMutex);
-
-					std::set<ChunkCoords>::iterator tmpLight = bc->lights.find(*i);
-
-					// if a light existed already, delete it
-					if(tmpLight != bc->lights.end())
-						bc->lights.erase(tmpLight);
-
-					// if the new block is emissive, add it
-					if(BLOCKTYPES[(*i).data] & BP_EMISSIVE)
-						bc->lights.insert(ChunkCoords((*i).x, (*i).y, (*i).z, BLOCKTYPES[(*i).data] & 0x0F));
-				}
-
-				bc->blocks[(*i).x][(*i).y][(*i).z] = (*i).data;
-				needsRebuild = true;
-
-				// TODO test out lighting stuff (I think it'll entail checking surrounding blocks,
-				// and if all are completely black, then no lighting update is needed...)
-				relight = true;
-
-				// if on edge, a neighbor will need update
-				// TODO: optimize out any cases where this may not be needed...
-				if(i->x == 0)
-					changedNeighbors[0] = true;
-				else if(i->x == CHUNK_SIZE_X-1)
-					changedNeighbors[1] = true;
-				if(i->z == 0)
-					changedNeighbors[4] = true;
-				else if(i->z == CHUNK_SIZE_Z-1)
-					changedNeighbors[5] = true;
+				byte type = bc->blocks[(*i).x][(*i).y][(*i).z];
+				byte newType = (*i).data;
+				if(type == newType)
+					continue;
+				int8 l1 = BLOCKTYPES[type] & BP_EMISSIVE ? BLOCKTYPES[type] & 0x0F : 0;
+				int8 l2 = BLOCKTYPES[newType] & BP_EMISSIVE ? BLOCKTYPES[newType] & 0x0F : 0;
+				bc->mConfirmedChanges[*i] = ChunkChange(type, l2 - l1);
 			}
+			else
+			{
+				// if this cancels the operation out, remove it
+				if(iter->second.origBlock == (*i).data)
+				{
+					i = bc->mChanges.erase(i);
+				}
+				// otherwise just update
+				else
+				{
+					byte newType = (*i).data;
+					int8 l1 = BLOCKTYPES[iter->second.origBlock] & BP_EMISSIVE ? 
+						BLOCKTYPES[iter->second.origBlock] & 0x0F : 0;
+					int8 l2 = BLOCKTYPES[newType] & BP_EMISSIVE ? BLOCKTYPES[newType] & 0x0F : 0;
+					iter->second.newLight = l2 - l1;
+					//iter->first.data = newType;
+					const ChunkCoords& tmp = iter->first;
+					const_cast<ChunkCoords&>(tmp).data = newType;
+				}
+			}
+		}
+
+		for(std::map<ChunkCoords, ChunkChange>::iterator i = bc->mConfirmedChanges.begin(); 
+			i != bc->mConfirmedChanges.end(); ++i)
+		{
+			bc->blocks[i->first.x][i->first.y][i->first.z] = i->first.data;
+			needsRebuild = true;
+			relight = true;
+
+			if(i->first.x == 0)
+				changedNeighbors[0] = true;
+			else if(i->first.x == CHUNK_SIZE_X-1)
+				changedNeighbors[1] = true;
+			if(i->first.z == 0)
+				changedNeighbors[4] = true;
+			else if(i->first.z == CHUNK_SIZE_Z-1)
+				changedNeighbors[5] = true;
 		}
 
 		// make sure to clear the changes
@@ -261,6 +311,8 @@ void TerrainChunkGenerator::apply()
 			mDirtyChunks[bc] = true;
 		}
 
+		// this will actually just means that these chunks get peeked at in the update
+		// process, and updated if they've been marked dirty by an actual change
 		if(needsRebuild || relight)
 		{
 			// relight surrounding blocks
@@ -292,70 +344,73 @@ void TerrainChunkGenerator::apply()
 //---------------------------------------------------------------------------
 
 // hacky little tree addition thingy
-void addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, int k)
+bool addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, int k,
+	std::list<ChunkCoords>& changes)
 {
 	if(i>2&&i<CHUNK_SIZE_X-3&&
 		k>2&&k<CHUNK_SIZE_Z-3&&rand()%150==0)
 	{
-		data[i][h+1][k] = 5;
-		data[i][h+2][k] = 5;
-		data[i][h+3][k] = 5;
-		data[i][h+4][k] = 5;
-		data[i+1][h+4][k] = 1;
-		data[i][h+4][k+1] = 1;
-		data[i][h+4][k-1] = 1;
-		data[i-1][h+4][k] = 1;
-		data[i+1][h+4][k+1] = 1;
-		data[i-1][h+4][k-1] = 1;
-		data[i+1][h+4][k-1] = 1;
-		data[i-1][h+4][k+1] = 1;
-		data[i+1][h+4][k+2] = 1;
-		data[i][h+4][k+2] = 1;
-		data[i-1][h+4][k+2] = 1;
-		data[i+1][h+4][k-2] = 1;
-		data[i][h+4][k-2] = 1;
-		data[i-1][h+4][k-2] = 1;
-		data[i+2][h+4][k+1] = 1;
-		data[i+2][h+4][k] = 1;
-		data[i+2][h+4][k-1] = 1;
-		data[i-2][h+4][k-1] = 1;
-		data[i-2][h+4][k] = 1;
-		data[i-2][h+4][k+1] = 1;
-		data[i][h+5][k] = 5;
-		data[i+1][h+5][k] = 1;
-		data[i][h+5][k+1] = 1;
-		data[i][h+5][k-1] = 1;
-		data[i-1][h+5][k] = 1;
-		data[i+1][h+5][k+1] = 1;
-		data[i-1][h+5][k-1] = 1;
-		data[i+1][h+5][k-1] = 1;
-		data[i-1][h+5][k+1] = 1;
-		data[i+1][h+5][k+2] = 1;
-		data[i][h+5][k+2] = 1;
-		data[i-1][h+5][k+2] = 1;
-		data[i+1][h+5][k-2] = 1;
-		data[i][h+5][k-2] = 1;
-		data[i-1][h+5][k-2] = 1;
-		data[i+2][h+5][k+1] = 1;
-		data[i+2][h+5][k] = 1;
-		data[i+2][h+5][k-1] = 1;
-		data[i-2][h+5][k-1] = 1;
-		data[i-2][h+5][k] = 1;
-		data[i-2][h+5][k+1] = 1;
-		data[i][h+6][k] = 5;
-		data[i+1][h+6][k] = 1;
-		data[i][h+6][k+1] = 1;
-		data[i][h+6][k-1] = 1;
-		data[i-1][h+6][k] = 1;
-		data[i+1][h+6][k+1] = 1;
-		data[i-1][h+6][k-1] = 1;
-		data[i+1][h+6][k-1] = 1;
-		data[i-1][h+6][k+1] = 1;
-		data[i+1][h+7][k] = 1;
-		data[i][h+7][k+1] = 1;
-		data[i][h+7][k-1] = 1;
-		data[i-1][h+7][k] = 1;
-		data[i][h+7][k] = 1;
+		changes.push_back(ChunkCoords(i,h+1,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i,h+2,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i,h+3,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i,h+4,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i+1,h+4,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+4,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+4,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+4,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+4,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+4,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+4,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+4,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+4,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+4,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+4,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+4,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+4,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+4,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+4,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+4,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+4,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+4,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+4,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+4,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+5,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i+1,h+5,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+5,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+5,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+5,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+5,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+5,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+5,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+5,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+5,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+5,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+5,k+2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+5,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+5,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+5,k-2,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+5,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+5,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+2,h+5,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+5,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+5,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-2,h+5,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+6,k,BT_WOOD));
+		changes.push_back(ChunkCoords(i+1,h+6,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+6,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+6,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+6,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+6,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+6,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+6,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+6,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i+1,h+7,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+7,k+1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+7,k-1,BT_LEAVES));
+		changes.push_back(ChunkCoords(i-1,h+7,k,BT_LEAVES));
+		changes.push_back(ChunkCoords(i,h+7,k,BT_LEAVES));
+		return true;
 	}
+	return false;
 }
 //-----------------------------------------------------------------------

@@ -38,10 +38,10 @@ void PlayState::init()
 	mPhysics->startSimulation();
 
 	// background and fog colors
-	Colour col = Colour(255/255.f,200/255.f,158/255.f);
-	Colour col2 = Colour(211/255.f,234/255.f,243/255.f);
+	Colour col = Colour(155/255.f,190/255.f,158/255.f);
+	Colour col2 = Colour(111/255.f,194/255.f,243/255.f);
 	mGfx->setBackgroundColor(col2);
-	mGfx->setLinearFog(30.f,60.f,col);
+	mGfx->setLinearFog(50.f,90.f,col2);
 
 	// Setup portal render sequence:
 
@@ -80,7 +80,7 @@ void PlayState::init()
 		}
 	}
 
-	mGfx->enableCustomRenderSequence(&mRenderSequence);
+	//mGfx->enableCustomRenderSequence(&mRenderSequence);
 
 	// so we can get signals during portal rendering (for setting up camera, visibility, etc)
 	mGfx->getSignal("CustomRenderSequenceIteration")->
@@ -105,7 +105,7 @@ void PlayState::init()
 	mChunkMgr->init(Vector3(0,0,0), mGen);
 
 	// set up debug overlay
-	Batch* b = mGUI->createBatch("test", "TechDemo.oyster");
+	Batch* b = mGUI->createBatch("test", "../media/gui/TechDemo.oyster");
 	
 	Caption* c = new Caption(b, 0);
 	c->setCaption("Worker Threads: " + StringUtils::toString(GENERATOR_WORKER_THREADS));
@@ -132,7 +132,7 @@ void PlayState::init()
 
 	c = new Caption(b, 0);
 	c->setCaption("Block: 6");
-	c->setPosition(Vector2(0.7f, 0.94f));
+	c->setPosition(Vector2(0.5f, 0.94f));
 	mSelectionText = c;
 
 	mBlockSelected = 6;
@@ -153,6 +153,7 @@ void PlayState::update(Real delta)
 		(mInput->isKeyDown("KC_D")-mInput->isKeyDown("KC_A"));
 
 	Real len = moveVect.normalize();
+	len *= 5.f;
 
 	// hacky raycast for portals
 	RaycastReport r = mPhysics->raycast(mCam->getPosition(),moveVect,
@@ -194,15 +195,14 @@ void PlayState::update(Real delta)
 	// update player position with the chunk generator
 	mGen->setPlayerPos(mCam->getPosition());
 
-
 	// same o' same o'
 	if(mInput->wasKeyPressed("KC_ESCAPE"))
 		mEngine->shutdown();
 
 	if(mInput->wasKeyPressed("KC_UP"))
-		mBlockSelected = mBlockSelected % 6 + 1;
+		mBlockSelected = (mBlockSelected % (NUM_BLOCKTYPES-1)) + 1;
 	if(mInput->wasKeyPressed("KC_DOWN"))
-		mBlockSelected = mBlockSelected == 1 ? 6 : mBlockSelected - 1;
+		mBlockSelected = mBlockSelected == 1 ? (NUM_BLOCKTYPES - 1) : mBlockSelected - 1;
 
 	// screenshots
 	if(mInput->wasKeyPressed("KC_P"))
@@ -220,9 +220,6 @@ void PlayState::update(Real delta)
 	{
 		if(mInput->isKeyDown("KC_L"))
 		{
-			//RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-			//	50.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
-
 			RaycastReport r;
 			raycastThroughPortals(r, mCam->getPosition(),mCam->getDirection(), 50.f);
 
@@ -253,9 +250,6 @@ void PlayState::update(Real delta)
 		}
 		else if(!mInput->isKeyDown("KC_LSHIFT"))
 		{
-			//RaycastReport r = mPhysics->raycast(mCam->getPosition(),mCam->getDirection(),
-			//	8.f,COLLISION_GROUP_3,COLLISION_GROUP_3);
-
 			RaycastReport r;
 			raycastThroughPortals(r, mCam->getPosition(),mCam->getDirection(), 8.f);
 
@@ -314,20 +308,21 @@ void PlayState::update(Real delta)
 		}
 	}
 
+	Chunk* cs[4] = {mPortals[0]->getChunk(0), mPortals[0]->getChunk(1),
+		mPortals[1]->getChunk(0), mPortals[1]->getChunk(1)};
+	ChunkCoords co[4] = {mPortals[0]->getCoords(0), mPortals[0]->getCoords(1),
+		mPortals[1]->getCoords(0), mPortals[1]->getCoords(1)};
+	mGen->setPortalInfo(cs, co);
+
 	if(mPortals[0]->isEnabled() && mPortals[1]->isEnabled())
 	{
-		Chunk* cs[4] = {mPortals[0]->getChunk(0), mPortals[0]->getChunk(1),
-			mPortals[1]->getChunk(0), mPortals[1]->getChunk(1)};
-		ChunkCoords co[4] = {mPortals[0]->getCoords(0), mPortals[0]->getCoords(1),
-			mPortals[1]->getCoords(0), mPortals[1]->getCoords(1)};
-		mGen->setPortalInfo(cs, co);
 		if(!mGfx->isCustomRenderSequenceEnabled())
 			mGfx->enableCustomRenderSequence(&mRenderSequence);
 		mUI->setHidden(true);
 	}
 	else
 	{
-		mGen->setPortalInfo();
+		//mGen->setPortalInfo();
 		mGfx->disableCustomRenderSequence();
 		mUI->setHidden(false);
 	}

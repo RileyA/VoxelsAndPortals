@@ -1,8 +1,10 @@
 [Texture]
 file TechDemo.png
-whitepixel 252 252
+dimensions 512 512
+whitepixel 511 511
 
-[Font.20]
+[Font]
+name DEFAULT
 lineheight 31
 spacelength 8
 baseline 25
@@ -219,3 +221,8 @@ kerning_121 58 -1
 [Sprites]
 test 15 474 80 25
 cursor 111 475 16 23
+button 10 382 327 80
+btnup 283 11 200 50
+btnhover 283 61 200 50
+btndown 283 111 200 50
+logo 30 384 278 72

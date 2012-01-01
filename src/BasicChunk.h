@@ -43,7 +43,7 @@ public:
 	 *	@param coords the coordinates at which to set the light
 	 *	@param val The light value to try 
 	 *	@return If it replaced the light value*/
-	inline bool setLight(ChunkCoords& coords, byte val)
+	inline bool setLight(ChunkCoords coords, byte val)
 	{
 		//boost::mutex::scoped_lock lock(mLightMutex);
 
@@ -54,6 +54,33 @@ public:
 		else
 		{
 			light[coords.x][coords.y][coords.z] = val;
+			lightDirty = true;
+			return true;
+		}
+	}
+
+	/*inline void forceSetLight(ChunkCoords coords, byte val)
+	{
+		light[coords.x][coords.y][coords.z] = val;
+		if(coords.x == 0 && neighbors[0])
+			neighbors[0]->lightDirty = true;
+		if(coords.x == 15 && neighbors[1])
+			neighbors[1]->lightDirty = true;
+		if(coords.z == 0 && neighbors[4])
+			neighbors[4]->lightDirty = true;
+		if(coords.z == 15 && neighbors[5])
+			neighbors[5]->lightDirty = true;
+	}*/
+
+	inline bool setLight(byte x, byte y, byte z, byte val)
+	{
+		if(light[x][y][z] >= val)
+		{
+			return false;
+		}
+		else
+		{
+			light[x][y][z] = val;
 			return true;
 		}
 	}
@@ -203,10 +230,12 @@ protected:
 
 	// pending changes
 	std::list<ChunkCoords> mChanges;
+	std::map<ChunkCoords, ChunkChange> mConfirmedChanges;
 
 	// light emitting blocks
 	boost::mutex mLightListMutex;
 	std::set<ChunkCoords> lights;
+	bool lightDirty;
 	// TODO: something for portals and associated light changes...
 	
 	bool mHasBeenActive;

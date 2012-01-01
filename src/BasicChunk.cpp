@@ -8,6 +8,7 @@ BasicChunk::BasicChunk(BasicChunkGenerator* gen, InterChunkCoords pos)
 {
 	for(int i = 0; i < 6; ++i)
 		neighbors[i] = 0;
+	lightDirty = true;
 }
 //---------------------------------------------------------------------------
 
@@ -77,10 +78,10 @@ void BasicChunk::build(bool full)
 			for(int p = 0; p < 6; ++p)
 			{
 				// only check if there isn't a block in this direction
-				if(adjacents[p])
-				{
+				//if(adjacents[p])
+				//{
 					surroundingLights[p] = LIGHTVALUES[getLightAt(this, bc<<p)];
-				}
+				//}
 			}
 
 			// create the quads
@@ -95,6 +96,10 @@ void BasicChunk::build(bool full)
 			}
 		}
 	}
+
+	// we can clear out the changes list now
+	mConfirmedChanges.clear();
+	lightDirty = false;
 }
 //---------------------------------------------------------------------------
 
@@ -156,7 +161,8 @@ void BasicChunk::changeBlock(const ChunkCoords& chng)
 	// occur between this and the 'apply' step of the generator thread
 	{
 		boost::mutex::scoped_lock lock(mBlockMutex);
-		mChanges.push_back(chng);
+		if(chng.data != blocks[chng.x][chng.y][chng.z])
+			mChanges.push_back(chng);
 	}
 	mBasicGenerator->notifyChunkChange(this);
 }
@@ -283,73 +289,85 @@ void BasicChunk::makeQuad(
 
 		// apply to each channel (with some slight offsets to give the light a bit of color)
 		mMesh->diffuse.push_back(light);
-		mMesh->diffuse.push_back(light / 1.5);
 		mMesh->diffuse.push_back(light / 1.3);
+		mMesh->diffuse.push_back(light / 1.2);
 		mMesh->diffuse.push_back(1.f);// alpha's just always 1
 	}
 }
 //---------------------------------------------------------------------------
 
-void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
-	ChunkCoords coords, byte lightVal, bool emitter)
+// experimental breadth-first version:
+/*void BasicChunk::doLighting(ChunkCoords coords, byte lightVal, bool emitter, BasicChunk** cs)
 {
-	int8 trans = 0;
+	// queue for BFS
+	std::deque<ChunkCoords> q;
 
-	// only proceed if this is an emitter, OR a transparent block with
-	// a lesser light value than lightVal
-	if(emitter || (lightVal > 0 && (trans = getTransparency(
-		blocks[coords.x][coords.y][coords.z])) &&
-		(setLight(coords,lightVal))))
+	coords.data = lightVal;
+	q.push_back(coords);
+
+	while(!q.empty())
 	{
-		// loop through each direction
-		for(int i = BD_LEFT; i <= BD_BACK; ++i)
+		ChunkCoords current = q.front();
+		q.pop_front();
+
+		if(emitter)
 		{
-			// hold onto the original value, so we can backtrack
-			ChunkCoords old = coords;
+			current.data -= 1;
+			//setLight(coords, lightVal);
 
-			// nudge in the proper direction
-			coords[AXIS[i]] += AXIS_OFFSET[i];
+			// proceed
+			for(int d = BD_LEFT; d <= BD_BACK; ++d)
+				q.push_back(current << d);
 
-			// since it may cross into other chunks
-			BasicChunk* tmp = this;
+			emitter = false;
 
-			// check for out of bounds
-			if(coords[AXIS[i]] < 0)
+			continue;
+		}
+
+		if(current.data <= 0 || current.y < 0 || current.y >= CHUNK_SIZE_Y)
+			continue;
+
+		ChunkCoords clamped((current.x + 16) & 0x0f, current.y, (current.z + 16) & 0x0f);
+		BasicChunk* chunk = cs[((current.x+16)/16) * 3 + (current.z+16)/16]; 
+
+		int8 trans = 0;
+
+		if(chunk && (trans = getTransparency(chunk->blocks[clamped.x][clamped.y][clamped.z]))
+			&& chunk->setLight(clamped.x, clamped.y, clamped.z, current.data))
+		{
+			// apply lighting change
+			current.data -= trans;
+
+			// proceed
+			for(int d = BD_LEFT; d <= BD_BACK; ++d)
 			{
-				tmp = neighbors[i];
-				coords[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+				q.push_back(current << d);
 			}
-			else if(coords[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
-			{
-				tmp = neighbors[i];
-				coords[AXIS[i]] = 0;
-			}
-
-			// continue (if on an edge, then only do so if it exists in the map)
-			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
-			{
-				tmp->doLighting(chunks, coords, lightVal - trans, false);
-			}
-
-			// reset coords
-			coords = old;
 		}
 	}
-}
+
+}*/
 //---------------------------------------------------------------------------
 
 void BasicChunk::doLighting(ChunkCoords coords, byte lightVal, bool emitter)
 {
+
+	if(emitter)
+		setLight(coords, lightVal);
+
 	int8 trans = 0;
 
 	// only proceed if this is an emitter, OR a transparent block with
 	// a lesser light value than lightVal
 	if(emitter || (lightVal > 0 && (trans = getTransparency(
-		blocks[coords.x][coords.y][coords.z])) &&
-		(setLight(coords,lightVal))))
+		blocks[coords.x][coords.y][coords.z])) && (lightVal > trans) &&
+		(setLight(coords,lightVal - trans))))
 	{
+		// a change has been made to this chunk's lighting, it will now need a relight
+		lightDirty = true;
+
 		// loop through each direction
-		for(int i = BD_LEFT; i <= BD_BACK; ++i)
+		for(int i = BD_BACK; i >= 0; --i)
 		{
 			// hold onto the original value, so we can backtrack
 			ChunkCoords old = coords;
@@ -376,6 +394,55 @@ void BasicChunk::doLighting(ChunkCoords coords, byte lightVal, bool emitter)
 			if(lightVal - trans > 0 && tmp)
 			{
 				tmp->doLighting(coords, lightVal - trans, false);
+			}
+
+			// reset coords
+			coords = old;
+		}
+	}
+}
+//---------------------------------------------------------------------------
+// Recursive depth first version
+void BasicChunk::doLighting(const std::map<BasicChunk*, bool>& chunks,
+	ChunkCoords coords, byte lightVal, bool emitter)
+{
+	int8 trans = 0;
+
+	// only proceed if this is an emitter, OR a transparent block with
+	// a lesser light value than lightVal
+	if(emitter || (lightVal > 0 && (trans = getTransparency(
+		blocks[coords.x][coords.y][coords.z])) && (lightVal > trans) &&
+		(setLight(coords,lightVal - trans))))
+	{
+		lightDirty = true;
+		// loop through each direction
+		for(int i = BD_BACK; i >= 0; --i)
+		{
+			// hold onto the original value, so we can backtrack
+			ChunkCoords old = coords;
+
+			// nudge in the proper direction
+			coords[AXIS[i]] += AXIS_OFFSET[i];
+
+			// since it may cross into other chunks
+			BasicChunk* tmp = this;
+
+			// check for out of bounds
+			if(coords[AXIS[i]] < 0)
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+			}
+			else if(coords[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
+			{
+				tmp = neighbors[i];
+				coords[AXIS[i]] = 0;
+			}
+
+			// continue (if on an edge, then only do so if it exists in the map)
+			if(lightVal - trans > 0 && tmp && (tmp == this || chunks.find(tmp) != chunks.end()))
+			{
+				tmp->doLighting(chunks, coords, lightVal - trans, false);
 			}
 
 			// reset coords

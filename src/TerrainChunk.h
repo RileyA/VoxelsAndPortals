@@ -11,6 +11,12 @@ public:
 	virtual ~TerrainChunk();
 	virtual void calculateLighting(const std::map<BasicChunk*, 
 		bool>& chunks, bool secondaryLight);
+
+	//void inverseDoLighting(ChunkCoords coords, byte lightVal, byte prevLightVal, std::set<ChunkCoords>& newLights);
+	void inverseDoLighting(ChunkCoords coords, ChunkCoords clamped, byte lightVal, 
+		byte prevLightVal, std::set<ChunkCoords>& newLights);
+	void doInvLighting(ChunkCoords coords, byte lightVal, 
+		byte prevLightVal, byte dirMask = 0xFF);
 };
 
 #endif

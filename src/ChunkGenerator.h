@@ -5,6 +5,8 @@
 #include "ChunkCoords.h"
 #include "Chunk.h"
 
+class TerrainChunk;
+
 /** Abstract Chunk generator for procedurally creating chunks */
 class ChunkGenerator
 {
@@ -58,9 +60,36 @@ protected:
 
 	// portal stuff (hacky)
 	boost::mutex mPortalMutex;
+	//int mPortalStatus[2];
 	bool mPortalsEnabled;
-	std::pair<Chunk*, ChunkCoords> mPortals[2][2];
+	//std::pair<Chunk*, ChunkCoords> mPortals[2][2];
 
+	struct PortalInfo
+	{
+		enum PortalStatus
+		{
+			PS_UNCHANGED,
+			PS_ACTIVATED,
+			PS_DEACTIVATED,
+			PS_MOVED
+		};
+
+		bool active;
+		ChunkCoords coords[2];
+		TerrainChunk* chunks[2];
+		byte light[2];
+
+		ChunkCoords prevCoords[2];
+		TerrainChunk* prevChunks[2];
+		//byte prevLight[2];
+		bool wasActive;
+		PortalStatus status;
+	};
+
+	PortalInfo mPortalData[2];
+
+	// positions of observers (0 = player, 1,2 = portals)
+	std::pair<bool, InterChunkCoords> mObserverPositions[3];
 };
 
 #endif

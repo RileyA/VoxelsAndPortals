@@ -1,9 +1,10 @@
 #include "TerrainChunk.h"
+#include "ChunkUtils.h"
 
 TerrainChunk::TerrainChunk(BasicChunkGenerator* gen, InterChunkCoords pos)
 	:BasicChunk(gen, pos)
 {
-
+	
 }
 //---------------------------------------------------------------------------
 
@@ -15,75 +16,290 @@ TerrainChunk::~TerrainChunk()
 
 void TerrainChunk::calculateLighting(const std::map<BasicChunk*, bool>& chunks, bool secondaryLight)
 {
-	// sunlight! (well, sky more like I suppose, since it comes from straight up...)
-	// super inefficient and hacky (this whole thing wasn't really built for Minecraft-style terrain and
-	// lighting and so forth...)
-	byte heights[CHUNK_SIZE_X][CHUNK_SIZE_Z];
-
-	for(int i = 0; i < CHUNK_SIZE_X; ++i)
-		for(int j = 0; j < CHUNK_SIZE_Z; ++j)
+	// This is sort of big and redundant at the moment... but considerably faster than the original
+	for(std::map<ChunkCoords, ChunkChange>::iterator i = mConfirmedChanges.begin(); 
+		i != mConfirmedChanges.end(); ++i)
 	{
-		for(int y = CHUNK_SIZE_Y - 1; y >= 0; --y)
+		ChunkCoords crds = i->first;
+		ChunkChange chch = i->second;
+		byte oldLight    = light[crds.x][crds.y][crds.z];
+		byte origBlock   = chch.origBlock;
+		byte newBlock    = crds.data;
+
+		// NOTE we assume wasAir && isAir cannot both be true
+		bool wasAir         = origBlock == 0;
+		bool isAir          = newBlock  == 0;
+		bool wasTransparent = BLOCKTYPES[origBlock] & BP_TRANSPARENT;
+		bool isTransparent  = BLOCKTYPES[newBlock ] & BP_TRANSPARENT;
+		bool wasEmitter     = BLOCKTYPES[origBlock] & BP_EMISSIVE;
+		bool isEmitter      = BLOCKTYPES[newBlock ] & BP_EMISSIVE;
+
+		byte oldSecondary = BLOCKTYPES[origBlock] & 0x0F;
+		byte newSecondary = BLOCKTYPES[newBlock] & 0x0F;
+		if(wasTransparent) oldSecondary++;
+		if(isTransparent)  newSecondary++;
+
+		// CASE: was sunlit air
+		// the new addition is blocking sunlight now
+		if(wasAir && oldLight == 15)
 		{
-			heights[i][j] = 0;
-			if(!blocks[i][y][j])
+			lightDirty = true;
+
+			// zero out light
+			int y = crds.y - 1;
+			for(; y >= 0 && !blocks[crds.x][y][crds.z]; --y)
+				light[crds.x][y][crds.z] = 0;
+
+			byte lv = 0;
+
+			// if transparent or emitter, set light value accordingly
+			if(isTransparent)
+				lv = 15 - newSecondary;
+			else if(isEmitter)
+				lv = newSecondary;
+			else
+				lv = 0;
+
+			light[crds.x][crds.y][crds.z] = lv;
+			doInvLighting(crds, lv, oldLight, 0x33);
+
+			// now do 'inverse' lighting (only on XZ plane) to correct invalidated light
+			for(y = y + 1; y < crds.y; ++y)
+				doInvLighting(ChunkCoords(crds.x, y, crds.z), 0, 15, 0x33);
+		}
+		// CASE: was blocking sunlight
+		// now light will potentially propagate down
+		else if((crds.y == CHUNK_SIZE_Y - 1) 
+			|| (blocks[crds.x][crds.y+1][crds.z] == 0 && light[crds.x][crds.y+1][crds.z] == 15))
+		{
+			// CASE: air light will propagate freely
+			if(isAir)
 			{
-				ChunkCoords c(i,y,j);
-				setLight(c, 15);
+				int y = crds.y;
+				// loop down setting light vals
+				for(; y >= 0 && !blocks[crds.x][y][crds.z]; --y)
+					light[crds.x][y][crds.z] = 15;
+				// propagate normally
+				for(y = y + 1; y <= crds.y; ++y)
+					doLighting(ChunkCoords(crds.x, y, crds.z), 15, true);
+				lightDirty = true;
 			}
+			// CASE: not air, sunlight will not propagate down
 			else
 			{
-				heights[i][j] = y+1;
-				break;
-			}
-		}
-	}
+				byte oldEmission = 0;
+				if(wasTransparent)	oldEmission = 15 - oldSecondary;
+				else if(wasEmitter) oldEmission = oldSecondary;
 
-	for(int i = 0; i < CHUNK_SIZE_X; ++i)
-		for(int j = 0; j < CHUNK_SIZE_Z; ++j)
-	{
-		for(int y = CHUNK_SIZE_Y - 1; y >= heights[i][j] && y >= 0; --y)
-		{
-			ChunkCoords c(i,y,j);
-			doLighting(chunks, c, 15, true);
-		}
-	}
+				byte newEmission = 0;
+				if(isTransparent)  newEmission = 15 - newSecondary;
+				else if(isEmitter) newEmission = newSecondary;
 
-	if(secondaryLight)
-	{
-		// loop through neighboring chunks, spreading light
-		for(int p=0;p<6;++p)
-		{
-			if(neighbors[p] && chunks.find(neighbors[p]) == chunks.end())
-			{
-				byte normal = AXIS[p];
-				byte aX = p > 1 ? 0 : 1;
-				byte aY = p < 4 ? 2 : 1;
-
-				byte d1 = (p&1)==0 ? CHUNKSIZE[normal]-1 : 0;
-				byte d2 = (p&1)==0 ? 0 : CHUNKSIZE[normal]-1;
-				
-				ChunkCoords coords = ChunkCoords(0,0,0);
-				coords[normal] = d1;
-				
-				for(coords[aX]=0;coords[aX]<CHUNKSIZE[aX];++coords[aX])
-					for(coords[aY]=0;coords[aY]<CHUNKSIZE[aY];++coords[aY])
+				if(newEmission == oldEmission)
 				{
-					byte value = neighbors[p]->light[coords[0]][coords[1]][coords[2]];
-					if(value>1)
-					{
-						coords[normal] = d2;
-						doLighting(chunks, coords, value - 1, false);
-						coords[normal] = d1;
-					}
+					// do nothing! lighting contribution is the same!
+				}
+				else if(newEmission > oldEmission)
+				{
+					// we're emitting more light, just propagate as usual
+					light[crds.x][crds.y][crds.z] = newEmission;
+					doLighting(crds, newEmission, true);
+					lightDirty = true;
+				}
+				else
+				{
+					// we're emitting less light, so do the 'inverse' lighting algo
+					light[crds.x][crds.y][crds.z] = newEmission;
+					doInvLighting(crds, newEmission, oldEmission);
+					lightDirty = true;
 				}
 			}
 		}
-	}
+		// CASE: Nothing to do with sunlight
+		else
+		{
+			int8 oldEmission = 0;
+			int8 newEmission = 0;
 
-	for(std::set<ChunkCoords>::iterator it = lights.begin(); it != lights.end(); ++it)
-	{
-		doLighting(chunks, (*it), (*it).data, true);
+			// CASE: was solid block
+			if(!wasTransparent && !wasEmitter)
+			{
+				oldEmission = 0;
+				// will be the emitted value
+				if(isEmitter) newEmission = newSecondary;
+				// we don't know... it'll need to do inverse
+				else if(isTransparent) newEmission = -1;
+			}
+			// CASE: was emissive block
+			else if(wasEmitter)
+			{
+				oldEmission = oldSecondary;
+				// will be the emitted value
+				if(isEmitter) newEmission = newSecondary;
+				// we don't know... it'll need to do inverse
+				else if(isTransparent) newEmission = -1;
+			}
+			// CASE: was transparent block
+			else
+			{
+				// light value
+				oldEmission = oldLight;
+
+				// will be the emitted value
+				if(isEmitter) newEmission = newSecondary;
+				// we know it isn't emitting, so we know the value right away
+				else if(isTransparent) oldEmission + oldSecondary - newSecondary;
+			}
+
+			// Now that we have light values...
+			
+			// CASE: Increased light value
+			if(newEmission > oldEmission)
+			{
+				// just set and propagate
+				light[crds.x][crds.y][crds.z] = newEmission;
+				doLighting(crds, newEmission, true);
+				lightDirty = true;
+			}
+			else if(newEmission == oldEmission)
+			{
+				// no change needed
+			}
+			// CASE: Decreased light value
+			else
+			{
+				// do inverse lighting
+				newEmission = std::max((int)newEmission, 0);
+				light[crds.x][crds.y][crds.z] = newEmission;
+				doInvLighting(crds, newEmission, oldEmission);
+				lightDirty = true;
+			}
+		}
 	}
 }
 //---------------------------------------------------------------------------
+
+void TerrainChunk::doInvLighting(ChunkCoords coords, byte lightVal, 
+	byte prevLightVal, byte dirMask)
+{
+	std::set<ChunkCoords> newLights;
+	coords.data = 0;
+	ChunkCoords clamped = coords;
+
+	// first do inverse step to clean up any invalidated light vals
+	for(int i = BD_BACK; i >= 0; --i)
+	{
+		if(!(dirMask & (1 << i)))
+			continue;
+
+		// hold onto the original value, so we can backtrack
+		ChunkCoords old = clamped;
+
+		// nudge in the proper direction
+		coords[AXIS[i]] += AXIS_OFFSET[i];
+		clamped[AXIS[i]] += AXIS_OFFSET[i];
+
+		// since it may cross into other chunks
+		BasicChunk* tmp = this;
+
+		// check for out of bounds
+		if(clamped[AXIS[i]] < 0)
+		{
+			tmp = neighbors[i];
+			clamped[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+		}
+		else if(clamped[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
+		{
+			tmp = neighbors[i];
+			clamped[AXIS[i]] = 0;
+		}
+
+		// continue (if on an edge, then only do so if it exists in the map)
+		if(tmp)
+		{
+			static_cast<TerrainChunk*>(tmp)->inverseDoLighting(coords, clamped, lightVal, prevLightVal, newLights);
+		}
+
+		// reset coords
+		clamped = old;
+		coords[AXIS[i]] -= AXIS_OFFSET[i];
+	}
+
+	for(std::set<ChunkCoords>::iterator it = newLights.begin(); 
+		it != newLights.end(); ++it)
+	{
+		ChunkCoords temp = *it;
+		BasicChunk* tempc = this;
+		tempc = correctChunkCoords(tempc, temp);
+		tempc->doLighting(temp, it->data, true);
+	}
+}
+//---------------------------------------------------------------------------
+
+void TerrainChunk::inverseDoLighting(ChunkCoords coords, ChunkCoords clamped, byte lightVal, 
+	byte prevLightVal, std::set<ChunkCoords>& newLights)
+{
+	byte type = blocks[clamped.x][clamped.y][clamped.z];
+	byte oldLight = light[clamped.x][clamped.y][clamped.z];
+
+	int8 trans = getTransparency(type);
+
+	// keep overwriting...
+	if(oldLight < prevLightVal && trans)
+	{
+		int8 newLight = std::max(0, (int8)lightVal - trans);
+		light[clamped.x][clamped.y][clamped.z] = newLight;
+		lightDirty = true;
+
+		// we know this can't be an exterior source now
+		std::set<ChunkCoords>::iterator it = newLights.find(coords);
+		if(it != newLights.end())
+			newLights.erase(it);
+			//const_cast<ChunkCoords&>(*it).data = 50;
+
+		for(int i = BD_BACK; i >= 0; --i)
+		{
+			// hold onto the original value, so we can backtrack
+			ChunkCoords old = clamped;
+
+			// nudge in the proper direction
+			coords[AXIS[i]] += AXIS_OFFSET[i];
+			clamped[AXIS[i]] += AXIS_OFFSET[i];
+
+			// since it may cross into other chunks
+			BasicChunk* tmp = this;
+
+			// check for out of bounds
+			if(clamped[AXIS[i]] < 0)
+			{
+				tmp = neighbors[i];
+				clamped[AXIS[i]] = CHUNKSIZE[AXIS[i]] - 1;
+			}
+			else if(clamped[AXIS[i]] >= CHUNKSIZE[AXIS[i]])
+			{
+				tmp = neighbors[i];
+				clamped[AXIS[i]] = 0;
+			}
+
+			// continue (if on an edge, then only do so if it exists in the map)
+			if(tmp)
+			{
+				static_cast<TerrainChunk*>(tmp)->inverseDoLighting(coords, clamped, newLight, oldLight, newLights);
+			}
+
+			// reset coords
+			clamped = old;
+			coords[AXIS[i]] -= AXIS_OFFSET[i];
+		}
+
+	}
+	// we've reached an edge, this might be an exterior source, or it may be the
+	// removed light looping back on itself
+	else
+	{
+		coords.data = oldLight;
+		newLights.insert(coords);
+	}
+}
+//---------------------------------------------------------------------------
+
