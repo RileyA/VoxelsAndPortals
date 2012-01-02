@@ -11,7 +11,7 @@
 #define SMOOTH_LIGHTING
 
 // chunk genertion options
-const static int ACTIVE_CHUNK_DISTANCE    = 7;
+const static int ACTIVE_CHUNK_DISTANCE    = 6;
 const static int DEACTIVATE_CHUNK_DISTANCE= 8;
 const static int GENERATE_CHUNK_DISTANCE  = 8;
 

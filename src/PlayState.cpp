@@ -135,7 +135,7 @@ void PlayState::init()
 	c->setPosition(Vector2(0.5f, 0.94f));
 	mSelectionText = c;
 
-	mBlockSelected = 6;
+	mBlockSelected = 1;
 
 	// hook it up with the rendering system
 	mUI = mGfx->createScreenMesh("DebugUI");
@@ -235,12 +235,15 @@ void PlayState::update(Real delta)
 				{
 					ChunkCoords cc2 = cc + ChunkCoords(i,j,k);
 					BasicChunk* bc2 = correctChunkCoords(bc, cc2);
-					cc2.data = 0;
-					bc2->changeBlock(cc2);
-					if(mPortals[0]->inPortal(bc2, cc2, true))
-						mPortals[0]->disable();
-					if(mPortals[1]->inPortal(bc2, cc2, true))
-						mPortals[1]->disable();
+					if(bc2)
+					{
+						cc2.data = 0;
+						bc2->changeBlock(cc2);
+						if(mPortals[0]->inPortal(bc2, cc2, true))
+							mPortals[0]->disable();
+						if(mPortals[1]->inPortal(bc2, cc2, true))
+							mPortals[1]->disable();
+					}
 				}
 			}
 			else if(r.group == COLLISION_GROUP_11)

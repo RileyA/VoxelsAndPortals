@@ -9,14 +9,25 @@ bool addTree(byte data[CHUNK_SIZE_X][CHUNK_SIZE_Y][CHUNK_SIZE_Z], int i, int h, 
 TerrainChunkGenerator::TerrainChunkGenerator()
 {
 	mPerlin = new noise::module::Perlin();
-	//mRidged = new noise::module::RidgedMulti();
-	//mBillow = new noise::module::Billow();
-	//mPerlin->SetSeed(rand());
 }
 //---------------------------------------------------------------------------
 
 TerrainChunkGenerator::~TerrainChunkGenerator()
 {
+	// TODO: Fix this in a cleaner way! Originally, the thread was being ended in BasicChunkGenerator,
+	// AFTER this, leaving the running thread to potentially fail in one of several unpleasant ways
+	stopThread();
+	mThread.join();
+
+	// delete all the chunks...
+	for(std::map<InterChunkCoords, BasicChunk*>::iterator i = mChunks.begin();
+		i != mChunks.end(); ++i)
+	{
+		delete i->second;
+	}
+
+	mChunks.clear();
+
 	delete mPerlin;
 }
 //---------------------------------------------------------------------------

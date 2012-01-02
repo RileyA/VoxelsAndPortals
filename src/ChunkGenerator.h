@@ -74,6 +74,21 @@ protected:
 			PS_MOVED
 		};
 
+		PortalInfo()
+		{
+			active = false;
+			wasActive = false;
+			status = PS_UNCHANGED;
+			for(int i = 0; i < 2; ++i)
+			{
+				coords[i] = ChunkCoords(0,0,0,0);
+				prevCoords[i] = ChunkCoords(0,0,0,0);
+				chunks[i] = 0;
+				prevChunks[i] = 0;
+				light[i] = 0;
+			}
+		}
+
 		bool active;
 		ChunkCoords coords[2];
 		TerrainChunk* chunks[2];

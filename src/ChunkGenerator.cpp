@@ -2,12 +2,14 @@
 #include "TerrainChunk.h"
 
 ChunkGenerator::ChunkGenerator()
-	:mPlayerPos(0,0,0), mInterChunkPos(0,0,0),mDone(false) 
+	:mPlayerPos(0,0,0), mInterChunkPos(0,0,0),mDone(false)
 {
 	mPortalsEnabled = false;
-	mObserverPositions[0].first = false;
-	mObserverPositions[1].first = false;
-	mObserverPositions[2].first = false;
+	mObserverPositions[0] = std::make_pair(false, InterChunkCoords(0,0,0));
+	mObserverPositions[1] = std::make_pair(false, InterChunkCoords(0,0,0));
+	mObserverPositions[2] = std::make_pair(false, InterChunkCoords(0,0,0));
+	mPortalData[0] = PortalInfo();
+	mPortalData[1] = PortalInfo();
 }
 //---------------------------------------------------------------------------
 

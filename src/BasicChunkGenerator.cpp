@@ -13,7 +13,7 @@ BasicChunkGenerator::BasicChunkGenerator()
 
 BasicChunkGenerator::~BasicChunkGenerator()
 {
-	stopThread();
+	/*stopThread();
 	mThread.join();
 
 	// delete all the chunks...
@@ -23,7 +23,7 @@ BasicChunkGenerator::~BasicChunkGenerator()
 		delete i->second;
 	}
 
-	mChunks.clear();
+	mChunks.clear();*/
 }
 //---------------------------------------------------------------------------
 
